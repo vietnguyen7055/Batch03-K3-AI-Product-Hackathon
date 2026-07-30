@@ -2,6 +2,23 @@
 
 **SPEC → Prototype → Demo.** Đây không phải cuộc thi code — đây là cuộc thi **tư duy sản phẩm AI**.
 
+## Thong tin nhom nop bai
+
+| Ma HV | Ho ten | Phan cong |
+|---|---|---|
+| [TODO] | [TODO] | Spec + quality bar |
+| [TODO] | [TODO] | Evidence mining |
+| [TODO] | [TODO] | Prompt + eval |
+| [TODO] | [TODO] | Code prototype |
+| [TODO] | [TODO] | Demo + validation |
+
+- San pham: VLearn Tutor - contextual slide study mode.
+- Prototype: `codebase/`
+- Spec: `spec.md`
+- Eval: `eval/`
+- Validation: `validation/`
+- Reflection: `reflection/`
+
 - Thời lượng: **1,5 ngày** (một ngày build + một buổi demo)
 - Nhóm: **4-5 người** · zone tối đa 5 nhóm · thi theo lớp
 
