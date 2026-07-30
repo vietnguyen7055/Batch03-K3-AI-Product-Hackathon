@@ -1,0 +1,1007 @@
+[
+  {
+    "id": "TC_Slide_01",
+    "slide": 1,
+    "pdf_page": 5,
+    "group": "AI 2026 & AI Agents",
+    "name": "Giới thiệu & Lịch trình",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 1."
+    },
+    "expected": {
+      "title": "Mụctiêu bài học"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_02",
+    "slide": 2,
+    "pdf_page": 6,
+    "group": "AI 2026 & AI Agents",
+    "name": "Mục tiêu bài học & Prerequisites",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 2."
+    },
+    "expected": {
+      "title": "AITaxonomy— Các tầngcủa trí tuệ nhân tạo"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_03",
+    "slide": 3,
+    "pdf_page": 7,
+    "group": "AI 2026 & AI Agents",
+    "name": "AI Taxonomy",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 3."
+    },
+    "expected": {
+      "title": "Banhóm AI chính"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_04",
+    "slide": 4,
+    "pdf_page": 8,
+    "group": "AI 2026 & AI Agents",
+    "name": "Ba nhóm AI chính",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 4."
+    },
+    "expected": {
+      "title": "TừAI cổ điển đến Agentic AI"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_05",
+    "slide": 5,
+    "pdf_page": 9,
+    "group": "AI 2026 & AI Agents",
+    "name": "Tiến trình phát triển AI",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 5."
+    },
+    "expected": {
+      "title": "Vìsao 2024-2026 là bước ngoặt?"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_06",
+    "slide": 6,
+    "pdf_page": 10,
+    "group": "AI 2026 & AI Agents",
+    "name": "Bước ngoặt 2024-2026",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 6."
+    },
+    "expected": {
+      "title": "TừLLM đến AI Agents"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_07",
+    "slide": 7,
+    "pdf_page": 11,
+    "group": "AI 2026 & AI Agents",
+    "name": "4 cấp độ từ LLM đến AI Agents",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 7."
+    },
+    "expected": {
+      "title": "Tạisao cần AI Agents?"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_08",
+    "slide": 8,
+    "pdf_page": 12,
+    "group": "AI 2026 & AI Agents",
+    "name": "Lý do cần AI Agent",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 8."
+    },
+    "expected": {
+      "title": "Thànhphần của AI Agent"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_09",
+    "slide": 9,
+    "pdf_page": 13,
+    "group": "AI 2026 & AI Agents",
+    "name": "Thành phần AI Agent",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 9."
+    },
+    "expected": {
+      "title": "Tươnglai của AI Agents"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_10",
+    "slide": 10,
+    "pdf_page": 14,
+    "group": "AI 2026 & AI Agents",
+    "name": "Tương lai AI Agents",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 10."
+    },
+    "expected": {
+      "title": "02"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_11",
+    "slide": 11,
+    "pdf_page": 15,
+    "group": "LLM Foundation",
+    "name": "Định nghĩa LLM",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 11."
+    },
+    "expected": {
+      "title": "Địnhnghĩa"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_12",
+    "slide": 12,
+    "pdf_page": 16,
+    "group": "LLM Foundation",
+    "name": "Kiến trúc Transformer",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 12."
+    },
+    "expected": {
+      "title": "Transformer— Kiến trúc cáchmạng(2017)"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_13",
+    "slide": 13,
+    "pdf_page": 17,
+    "group": "LLM Foundation",
+    "name": "Kiến trúc Transformer",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 13."
+    },
+    "expected": {
+      "title": "Transformer— Encoder-Decoder vs Decoder-only"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_14",
+    "slide": 14,
+    "pdf_page": 18,
+    "group": "LLM Foundation",
+    "name": "Input Embedding",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 14."
+    },
+    "expected": {
+      "title": "Transformer— Input Embedding"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_15",
+    "slide": 15,
+    "pdf_page": 19,
+    "group": "LLM Foundation",
+    "name": "Input Embedding",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 15."
+    },
+    "expected": {
+      "title": "Transformer— Input Embedding"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_16",
+    "slide": 16,
+    "pdf_page": 20,
+    "group": "LLM Foundation",
+    "name": "Positional Encoding",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 16."
+    },
+    "expected": {
+      "title": "Transformer— Positional Encoding"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_17",
+    "slide": 17,
+    "pdf_page": 21,
+    "group": "LLM Foundation",
+    "name": "Self-Attention",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 17."
+    },
+    "expected": {
+      "title": "Self-Attention— Cơ chế cốt lõi"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_18",
+    "slide": 18,
+    "pdf_page": 22,
+    "group": "LLM Foundation",
+    "name": "QKV",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 18."
+    },
+    "expected": {
+      "title": "Self-Attention— Q, K, V và AttentionScore"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_19",
+    "slide": 19,
+    "pdf_page": 23,
+    "group": "LLM Foundation",
+    "name": "Scaled Dot-Product",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 19."
+    },
+    "expected": {
+      "title": "Self-Attention— Scaled Dot-Product Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_20",
+    "slide": 20,
+    "pdf_page": 24,
+    "group": "LLM Foundation",
+    "name": "Scaled Dot-Product",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 20."
+    },
+    "expected": {
+      "title": "Self-Attention— Scaled Dot-Product Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_21",
+    "slide": 21,
+    "pdf_page": 25,
+    "group": "LLM Foundation",
+    "name": "Scaled Dot-Product",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 21."
+    },
+    "expected": {
+      "title": "Self-Attention— Scaled Dot-Product Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_22",
+    "slide": 22,
+    "pdf_page": 26,
+    "group": "LLM Foundation",
+    "name": "Scaled Dot-Product",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 22."
+    },
+    "expected": {
+      "title": "Self-Attention— Scaled Dot-Product Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_23",
+    "slide": 23,
+    "pdf_page": 27,
+    "group": "LLM Foundation",
+    "name": "Scaled Dot-Product",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 23."
+    },
+    "expected": {
+      "title": "Self-Attention— Scaled Dot-Product Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_24",
+    "slide": 24,
+    "pdf_page": 28,
+    "group": "LLM Foundation",
+    "name": "Scaled Dot-Product",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 24."
+    },
+    "expected": {
+      "title": "Self-Attention— Scaled Dot-Product Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_25",
+    "slide": 25,
+    "pdf_page": 29,
+    "group": "LLM Foundation",
+    "name": "Single Head",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 25."
+    },
+    "expected": {
+      "title": "Self-Attention— Single Head Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_26",
+    "slide": 26,
+    "pdf_page": 30,
+    "group": "LLM Foundation",
+    "name": "Single Head",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 26."
+    },
+    "expected": {
+      "title": "Self-Attention— Single Head Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_27",
+    "slide": 27,
+    "pdf_page": 31,
+    "group": "LLM Foundation",
+    "name": "Single Head",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 27."
+    },
+    "expected": {
+      "title": "Self-Attention— Single Head Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_28",
+    "slide": 28,
+    "pdf_page": 32,
+    "group": "LLM Foundation",
+    "name": "Single Head",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 28."
+    },
+    "expected": {
+      "title": "Self-Attention— Single Head Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_29",
+    "slide": 29,
+    "pdf_page": 33,
+    "group": "LLM Foundation",
+    "name": "Single Head",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 29."
+    },
+    "expected": {
+      "title": "Self-Attention— Single Head Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_30",
+    "slide": 30,
+    "pdf_page": 34,
+    "group": "LLM Foundation",
+    "name": "Single Head",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 30."
+    },
+    "expected": {
+      "title": "Self-Attention— Single Head Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_31",
+    "slide": 31,
+    "pdf_page": 35,
+    "group": "LLM Foundation",
+    "name": "Masked Self-Attention",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 31."
+    },
+    "expected": {
+      "title": "Self-Attention— Masked Self-Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_32",
+    "slide": 32,
+    "pdf_page": 36,
+    "group": "LLM Foundation",
+    "name": "Multi-Head",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 32."
+    },
+    "expected": {
+      "title": "Self-Attention—Multi-Head Attention"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_33",
+    "slide": 33,
+    "pdf_page": 37,
+    "group": "LLM Foundation",
+    "name": "Token",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 33."
+    },
+    "expected": {
+      "title": "Token— Đơn vị cơbản của LLM"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_34",
+    "slide": 34,
+    "pdf_page": 38,
+    "group": "LLM Foundation",
+    "name": "Next Token",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 34."
+    },
+    "expected": {
+      "title": "Next-TokenPrediction — LLM “suynghĩ” thế nào"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_35",
+    "slide": 35,
+    "pdf_page": 39,
+    "group": "LLM Foundation",
+    "name": "Training",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 35."
+    },
+    "expected": {
+      "title": "LLMđược tạo ra như thế nào?"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_36",
+    "slide": 36,
+    "pdf_page": 40,
+    "group": "LLM Foundation",
+    "name": "Limitations",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 36."
+    },
+    "expected": {
+      "title": "Giớihạn bẩm sinh của LLM"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_37",
+    "slide": 37,
+    "pdf_page": 41,
+    "group": "Token Economy",
+    "name": "03",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 37."
+    },
+    "expected": {
+      "title": "03"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_38",
+    "slide": 38,
+    "pdf_page": 42,
+    "group": "Token Economy",
+    "name": "Tokenlà gì?",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 38."
+    },
+    "expected": {
+      "title": "Tokenlà gì?"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_39",
+    "slide": 39,
+    "pdf_page": 43,
+    "group": "Token Economy",
+    "name": "Vìsao một số nội dung tốnnhiều token hơn?",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 39."
+    },
+    "expected": {
+      "title": "Vìsao một số nội dung tốnnhiều token hơn?"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_40",
+    "slide": 40,
+    "pdf_page": 44,
+    "group": "Token Economy",
+    "name": "APIPricing Model — Cách tính chiphí",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 40."
+    },
+    "expected": {
+      "title": "APIPricing Model — Cách tính chiphí"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_41",
+    "slide": 41,
+    "pdf_page": 45,
+    "group": "Token Economy",
+    "name": "Promptdài = Chi phí cao",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 41."
+    },
+    "expected": {
+      "title": "Promptdài = Chi phí cao"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_42",
+    "slide": 42,
+    "pdf_page": 46,
+    "group": "Token Economy",
+    "name": "Latencyvs Cost Trade-off",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 42."
+    },
+    "expected": {
+      "title": "Latencyvs Cost Trade-off"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_43",
+    "slide": 43,
+    "pdf_page": 47,
+    "group": "Token Economy",
+    "name": "Sosánh LLM phổ biến — Chọngì cho đúng việc?",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 43."
+    },
+    "expected": {
+      "title": "Sosánh LLM phổ biến — Chọngì cho đúng việc?"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_44",
+    "slide": 44,
+    "pdf_page": 48,
+    "group": "Token Economy",
+    "name": "Frameworkchọn model nhanh",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 44."
+    },
+    "expected": {
+      "title": "Frameworkchọn model nhanh"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_45",
+    "slide": 45,
+    "pdf_page": 49,
+    "group": "Token Economy",
+    "name": "Cùngmột prompt — 3 model, 3phong cách",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 45."
+    },
+    "expected": {
+      "title": "Cùngmột prompt — 3 model, 3phong cách"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_46",
+    "slide": 46,
+    "pdf_page": 50,
+    "group": "Token Economy",
+    "name": "ContextWindow— Bộ nhớ làm việc củaLLM",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 46."
+    },
+    "expected": {
+      "title": "ContextWindow— Bộ nhớ làm việc củaLLM"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_47",
+    "slide": 47,
+    "pdf_page": 51,
+    "group": "API & Code Patterns",
+    "name": "Tínhchi phí thực tế — Vídụ",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 47."
+    },
+    "expected": {
+      "title": "Tínhchi phí thực tế — Vídụ"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_48",
+    "slide": 48,
+    "pdf_page": 52,
+    "group": "API & Code Patterns",
+    "name": "04",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 48."
+    },
+    "expected": {
+      "title": "04"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_49",
+    "slide": 49,
+    "pdf_page": 53,
+    "group": "API & Code Patterns",
+    "name": "Luồngmột API call",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 49."
+    },
+    "expected": {
+      "title": "Luồngmột API call"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_50",
+    "slide": 50,
+    "pdf_page": 54,
+    "group": "API & Code Patterns",
+    "name": "Prerequisites— Trướckhi bắt đầu",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 50."
+    },
+    "expected": {
+      "title": "Prerequisites— Trướckhi bắt đầu"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_51",
+    "slide": 51,
+    "pdf_page": 55,
+    "group": "API & Code Patterns",
+    "name": "GọiOpenAI API — Hello World",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 51."
+    },
+    "expected": {
+      "title": "GọiOpenAI API — Hello World"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_52",
+    "slide": 52,
+    "pdf_page": 56,
+    "group": "API & Code Patterns",
+    "name": "Giảiphẫu một API Call (OpenAI GPT-4o)",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 52."
+    },
+    "expected": {
+      "title": "Giảiphẫu một API Call (OpenAI GPT-4o)"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_53",
+    "slide": 53,
+    "pdf_page": 57,
+    "group": "API & Code Patterns",
+    "name": "Thamsố Điều Khiển Output",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 53."
+    },
+    "expected": {
+      "title": "Thamsố Điều Khiển Output"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_54",
+    "slide": 54,
+    "pdf_page": 58,
+    "group": "API & Code Patterns",
+    "name": "Giảithích temperature và top_p",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 54."
+    },
+    "expected": {
+      "title": "Giảithích temperature và top_p"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_55",
+    "slide": 55,
+    "pdf_page": 59,
+    "group": "API & Code Patterns",
+    "name": "Sosánh cú pháp — Anthropic vsOpenAI",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 55."
+    },
+    "expected": {
+      "title": "Sosánh cú pháp — Anthropic vsOpenAI"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_56",
+    "slide": 56,
+    "pdf_page": 60,
+    "group": "API & Code Patterns",
+    "name": "GọiOpenAI API — Hàm wrapper",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 56."
+    },
+    "expected": {
+      "title": "GọiOpenAI API — Hàm wrapper"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_57",
+    "slide": 57,
+    "pdf_page": 61,
+    "group": "API & Code Patterns",
+    "name": "GọiOpenAI API — Đọc TokenUsage",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 57."
+    },
+    "expected": {
+      "title": "GọiOpenAI API — Đọc TokenUsage"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_58",
+    "slide": 58,
+    "pdf_page": 62,
+    "group": "API & Code Patterns",
+    "name": "GọiOpenAI API — Chatbot loop",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 58."
+    },
+    "expected": {
+      "title": "GọiOpenAI API — Chatbot loop"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_59",
+    "slide": 59,
+    "pdf_page": 63,
+    "group": "Vibe Coding",
+    "name": "Tựhost LLM lên local environment",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 59."
+    },
+    "expected": {
+      "title": "Tựhost LLM lên local environment"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_60",
+    "slide": 60,
+    "pdf_page": 64,
+    "group": "Vibe Coding",
+    "name": "Streaming— Response theo từng chunk (OpenAI)",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 60."
+    },
+    "expected": {
+      "title": "Streaming— Response theo từng chunk (OpenAI)"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_61",
+    "slide": 61,
+    "pdf_page": 65,
+    "group": "Vibe Coding",
+    "name": "05",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 61."
+    },
+    "expected": {
+      "title": "05"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_62",
+    "slide": 62,
+    "pdf_page": 66,
+    "group": "Vibe Coding",
+    "name": "VibeCoding là gì?",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 62."
+    },
+    "expected": {
+      "title": "VibeCoding là gì?"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_63",
+    "slide": 63,
+    "pdf_page": 67,
+    "group": "Vibe Coding",
+    "name": "Vìsao cần Vibecoding?",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 63."
+    },
+    "expected": {
+      "title": "Vìsao cần Vibecoding?"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_64",
+    "slide": 64,
+    "pdf_page": 68,
+    "group": "Vibe Coding",
+    "name": "VibeCoding Workflow",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 64."
+    },
+    "expected": {
+      "title": "VibeCoding Workflow"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_65",
+    "slide": 65,
+    "pdf_page": 69,
+    "group": "Vibe Coding",
+    "name": "MindsetShift — Từ viết code sangđiều phối AI",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 65."
+    },
+    "expected": {
+      "title": "MindsetShift — Từ viết code sangđiều phối AI"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_66",
+    "slide": 66,
+    "pdf_page": 70,
+    "group": "Vibe Coding",
+    "name": "3nguyên tắc Vibecoding",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 66."
+    },
+    "expected": {
+      "title": "3nguyên tắc Vibecoding"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  },
+  {
+    "id": "TC_Slide_67",
+    "slide": 67,
+    "pdf_page": 71,
+    "group": "Vibe Coding",
+    "name": "Prompttốt vs Prompt kém",
+    "input": {
+      "file": "Day01.pdf",
+      "prompt": "Đọc nội dung slide 67."
+    },
+    "expected": {
+      "title": "Prompttốt vs Prompt kém"
+    },
+    "pass_criteria": "Nội dung trả lời phải phản ánh đúng ý chính của slide, không bịa thông tin."
+  }
+]
