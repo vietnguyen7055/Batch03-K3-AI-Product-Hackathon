@@ -1,196 +1,1802 @@
-"""VLearn Clone — AI-Powered Learning Platform UI"""
+"""VLearn-style study page with slide context and an AI tutor."""
+
+from __future__ import annotations
+
+import html
+import json
+import os
+import re
+import base64
+from pathlib import Path
+from typing import Any
+
 import streamlit as st
 
-st.set_page_config(page_title="VLearn", page_icon="📚", layout="wide")
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional in some deployments
+    load_dotenv = None
 
-# ── Mock slide data ──
-SLIDES = [
-    {"id": 1, "title": "Giới thiệu khóa học", "content": """# 🎓 Giới thiệu khóa học AI Thực Chiến
+try:
+    from openai import OpenAI
+except Exception:  # pragma: no cover - app still works in mock mode
+    OpenAI = None
 
-## Mục tiêu khóa học
-- Hiểu và áp dụng AI vào sản phẩm thực tế
-- Làm chủ quy trình Problem → Solution → Prototype
-- Thành thạo prompt engineering & tool calling
+try:
+    import fitz  # PyMuPDF
+except Exception:  # pragma: no cover - app still works with demo slide cards
+    fitz = None
 
-## Lịch trình
-| Ngày | Chủ đề |
-|------|--------|
-| Day 1 | LLM API & Token |
-| Day 2 | AI Product Scoping |
-| Day 3 | Chatbot vs Agent |
-| Day 4 | Prompt Engineering |
 
-## Giảng viên
-- Thầy A — AI Engineer
-- Cô B — Product Manager"""},
-    {"id": 2, "title": "LLM API Cơ Bản", "content": """# 🔌 LLM API Cơ Bản
+ROOT = Path(__file__).parent
+EXTERNAL_DECKS_PATH = ROOT / "slides" / "decks.json"
+SLIDE_PDF_DIR = ROOT.parent / "Slide-AIThucChien"
+LOGO_PATH = ROOT.parent / "images.png"
 
-## OpenAI Chat Completions
-```python
-from openai import OpenAI
-client = OpenAI(api_key="...")
-response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": "Hello!"}]
-)
-```
 
-## Tham số quan trọng
-- **temperature** (0.0–2.0): Độ sáng tạo
-- **top_p** (0.0–1.0): Nucleus sampling
-- **max_tokens**: Giới hạn độ dài output"""},
-    {"id": 3, "title": "System Prompt & Token", "content": """# 🧠 System Prompt & Token
+def load_local_env() -> None:
+    env_path = ROOT / ".env"
+    if load_dotenv:
+        load_dotenv(env_path, override=True)
+        return
 
-## System Prompt
-Định hình persona cho model:
-```python
-messages = [
-    {"role": "system", "content": "Bạn là giáo viên tiểu học..."},
-    {"role": "user", "content": "Giải thích blockchain?"}
-]
-```
+    if not env_path.exists():
+        return
 
-## Token Counting
-- Dùng `tiktoken` để đếm token
-- Giá input khác output
-- 1 token ≈ 4 ký tự (ước lượng)"""},
-    {"id": 4, "title": "Streaming & Retry", "content": """# ⚡ Streaming & Độ Bền
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            os.environ[key] = value
 
-## Streaming
-```python
-stream = client.chat.completions.create(
-    model="gpt-4o", messages=messages, stream=True
-)
-for chunk in stream:
-    print(chunk.choices[0].delta.content or "", end="")
-```
 
-## Exponential Backoff
-```python
-for attempt in range(max_retries + 1):
-    try: return fn()
-    except: time.sleep(0.1 * 2**attempt)
-```"""},
-    {"id": 5, "title": "AI Product Scoping", "content": """# 🎯 AI Product Scoping
+load_local_env()
 
-## 4 Lăng Kính Tìm Problem
-1. **Lặp lại**: Việc gì xuất hiện đều đặn?
-2. **Tốn thời gian**: Việc gì ngốn thời gian?
-3. **AI có thể tốt hơn**: Việc gì AI làm tốt hơn?
-4. **Pain từ người khác**: Ai đang kêu ca?
+st.set_page_config(page_title="VLearn Tutor", page_icon="VL", layout="wide")
 
-## Problem Statement 6-Field
-- Actor · Workflow · Bottleneck
-- Impact · Metric · Boundary"""},
-    {"id": 6, "title": "ReAct Agent", "content": """# 🤖 ReAct Agent
 
-## Thought → Action → Observation
-1. **Thought**: Suy luận bước tiếp theo
-2. **Action**: Gọi tool với tham số
-3. **Observation**: Nhận kết quả từ tool
-
-## Guardrails
-- MAX_ITERATIONS: giới hạn vòng lặp
-- Timeout: giới hạn thời gian mỗi tool"""},
-]
-
-# ── Custom CSS for VLearn-like layout ──
-st.markdown("""
-<style>
-    .stApp { background: #f8f9fa; }
-    .slide-nav { padding: 8px 4px; }
-    .slide-nav-item {
-        padding: 10px 12px; margin: 4px 0; border-radius: 8px; cursor: pointer;
-        font-size: 13px; transition: all 0.15s;
-    }
-    .slide-nav-item:hover { background: #e9ecef; }
-    .slide-nav-item.active { background: #dbeafe; font-weight: 600; border-left: 3px solid #2563eb; }
-    .chat-msg { padding: 10px 12px; margin: 6px 0; border-radius: 10px; font-size: 13px; line-height: 1.5; }
-    .chat-msg.user { background: #dbeafe; margin-left: 20px; }
-    .chat-msg.bot { background: #f1f3f5; margin-right: 20px; }
-    .chat-input input { font-size: 13px; }
-    .slide-content { padding: 20px 30px; background: white; border-radius: 12px; min-height: 80vh; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-    .slide-content h1 { font-size: 24px; margin-top: 0; }
-    .slide-content pre { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 8px; font-size: 13px; }
-    .slide-content code { font-size: 13px; }
-    hr { margin: 8px 0; }
-</style>
-""", unsafe_allow_html=True)
-
-# ── Initialize state ──
-if "current_slide" not in st.session_state:
-    st.session_state.current_slide = 1
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-# ── 3-COLUMN LAYOUT ──
-col1, col2, col3 = st.columns([1, 3, 2])
-
-# ── LEFT: Slide Navigation ──
-with col1:
-    st.markdown("### 📑 Bài giảng")
-    st.caption(f"{len(SLIDES)} slides")
-
-    for slide in SLIDES:
-        active = "active" if slide["id"] == st.session_state.current_slide else ""
-        if st.button(
-            f"{'🔵 ' if active else ''}{slide['id']}. {slide['title']}",
-            key=f"nav_{slide['id']}",
-            use_container_width=True,
-            type="secondary" if slide["id"] != st.session_state.current_slide else "primary"
-        ):
-            st.session_state.current_slide = slide["id"]
-            st.rerun()
-
-# ── CENTER: Slide Content ──
-current = next(s for s in SLIDES if s["id"] == st.session_state.current_slide)
-
-with col2:
-    with st.container():
-        st.markdown(f'<div class="slide-content">{current["content"]}</div>', unsafe_allow_html=True)
-
-# ── RIGHT: AI Chatbot ──
-with col3:
-    st.markdown("### 🤖 AI Tutor")
-
-    with st.container(height=500):
-        if not st.session_state.chat_history:
-            st.caption("Chọn đoạn text ở slide bên trái, paste vào đây để AI tutor giải thích. Hoặc đặt câu hỏi bất kỳ về nội dung bài học.")
-
-        for msg in st.session_state.chat_history:
-            role = "user" if msg["role"] == "user" else "bot"
-            st.markdown(f'<div class="chat-msg {role}"><b>{"Bạn" if role=="user" else "Tutor"}:</b> {msg["content"]}</div>', unsafe_allow_html=True)
-
-    with st.container():
-        with st.form("chat_form", clear_on_submit=True):
-            cols = st.columns([5, 1])
-            with cols[0]:
-                user_input = st.text_input("Hỏi AI Tutor...", key="chat_input", label_visibility="collapsed", placeholder="VD: Giải thích khái niệm temperature...")
-            with cols[1]:
-                submitted = st.form_submit_button("Gửi", use_container_width=True)
-
-        if submitted and user_input:
-            st.session_state.chat_history.append({"role": "user", "content": user_input})
-
-            # Mock AI response based on current slide context
-            mock_responses = {
-                "temperature": "**Temperature** (0.0–2.0) kiểm soát độ ngẫu nhiên khi model sinh text. Temperature = 0.0 → output ổn định, lặp lại. Temperature = 1.0+ → sáng tạo, đa dạng nhưng dễ lan man. Với chatbot hỗ trợ khách hàng, nên dùng 0.2–0.3 để đảm bảo nhất quán.",
-                "token": "**Token** là đơn vị text mà model xử lý. 1 token ≈ 4 ký tự tiếng Anh hoặc 0.75 từ. Tiếng Việt tốn nhiều token hơn vì dấu và ký tự Unicode. Dùng `tiktoken` để đếm chính xác.",
-                "prompt": "**System Prompt** là chỉ thị đạo diễn — định hình toàn bộ giọng điệu và hành vi của model. Nó nằm ở đầu `messages` với `role: system`. Ví dụ: 'Bạn là giáo viên tiểu học...' sẽ khiến model giải thích mọi thứ đơn giản hơn.",
-                "react": "**ReAct Agent** hoạt động theo vòng lặp: Thought → Action → Observation. Khác với Chatbot thường (chỉ sinh text tĩnh), ReAct Agent tự gọi công cụ (tool), nhận kết quả, rồi suy luận tiếp. Cần guardrail (MAX_ITERATIONS) để tránh lặp vô hạn.",
-                "streaming": "**Streaming** cho phép model trả về từng token một thay vì đợi toàn bộ response. UX tốt hơn vì user thấy text xuất hiện dần. Dùng `stream=True` trong API call. Phù hợp cho chatbot, không cần cho xử lý batch.",
-                "top_p": "**Top-p (nucleus sampling)** giới hạn token pool chỉ lấy những token có tổng xác suất ≥ p. Ví dụ top_p=0.9 → model chỉ chọn từ 90% token có khả năng cao nhất. Thường chỉ dùng 1 trong 2: temperature hoặc top_p.",
-                "system": "**System Prompt** là tin nhắn đầu tiên trong `messages` với `role: 'system'`. Nó định nghĩa vai trò, giọng điệu, và ranh giới cho model. Khác với user prompt — system prompt không thay đổi giữa các lượt chat.",
+DEMO_DECKS: list[dict[str, Any]] = [
+    {
+        "id": "day01",
+        "title": "Day01",
+        "summary": "2 tài liệu · PUBLISHED",
+        "status": "PUBLISHED",
+        "materials": [
+            {
+                "id": "day01-foundation",
+                "title": "day01-llm-foundation.pdf",
+                "filename": "day01-llm-foundation.pdf",
+                "pages": 38,
+                "slides": [
+                    {
+                        "page": 1,
+                        "layout": "concept",
+                        "title": "LLM Foundation",
+                        "subtitle": "Mô hình ngôn ngữ lớn hoạt động như thế nào?",
+                        "eyebrow": "Day01 · Foundation",
+                        "key_points": [
+                            "LLM dự đoán token tiếp theo dựa trên ngữ cảnh.",
+                            "Prompt tốt giúp mô hình biết vai trò, mục tiêu và ràng buộc.",
+                            "Đánh giá cần đo theo hành vi người dùng, không chỉ cảm giác câu trả lời hay.",
+                        ],
+                    }
+                ],
             }
+        ],
+    },
+    {
+        "id": "day02",
+        "title": "Day02",
+        "summary": "1 tài liệu · PUBLISHED",
+        "status": "PUBLISHED",
+        "materials": [
+            {
+                "id": "day02-product",
+                "title": "day02-ai-product-scoping.pdf",
+                "filename": "day02-ai-product-scoping.pdf",
+                "pages": 42,
+                "slides": [
+                    {
+                        "page": 1,
+                        "layout": "concept",
+                        "title": "AI Product Scoping",
+                        "subtitle": "Từ vấn đề thật đến lát cắt prototype",
+                        "eyebrow": "Day02 · Product Thinking",
+                        "key_points": [
+                            "Bắt đầu bằng pain cụ thể: ai, đang làm gì, vướng ở đâu, hậu quả gì.",
+                            "Một prototype tốt chỉ cần một người dùng, một việc, một quyết định AI.",
+                            "Nguồn sự thật quyết định chatbot có được phép trả lời hay phải hỏi lại.",
+                        ],
+                    }
+                ],
+            }
+        ],
+    },
+    {
+        "id": "day03",
+        "title": "Day03",
+        "summary": "2 tài liệu · PUBLISHED",
+        "status": "STUDYING",
+        "materials": [
+            {
+                "id": "day03-react",
+                "title": "day03-tu-chatbot-den-agentic-agent-react.pdf",
+                "filename": "day03-tu-chatbot-den-agentic-agent-react.pdf",
+                "pages": 46,
+                "slides": [
+                    {
+                        "page": 1,
+                        "layout": "cover",
+                        "title": "Từ Chatbot Đến Agentic Agent",
+                        "subtitle": "AICB-P1 · Ngày 3 · Design Pattern ReAct",
+                        "eyebrow": "VINUNIVERSITY",
+                        "footer": "VinUniversity · Phase 1 · Tuần 1 · 17/03/2026",
+                        "key_points": [
+                            "Mục tiêu buổi học là phân biệt chatbot trả lời trực tiếp và agent biết dùng công cụ.",
+                            "ReAct là mẫu thiết kế cho vòng lặp suy nghĩ, hành động và quan sát.",
+                            "Agent cần guardrail để tránh gọi tool sai, lặp vô hạn hoặc trả lời ngoài phạm vi.",
+                        ],
+                    },
+                    {
+                        "page": 2,
+                        "layout": "prompt",
+                        "title": "Hãy suy nghĩ...",
+                        "subtitle": "Nếu chatbot có thể gọi công cụ, điều gì thay đổi?",
+                        "eyebrow": "Warm-up",
+                        "key_points": [
+                            "Chatbot thường chỉ sinh câu trả lời từ ngữ cảnh đã có.",
+                            "Agent có thể quyết định gọi tool khi thiếu dữ kiện hoặc cần hành động bên ngoài.",
+                            "Rủi ro tăng lên vì mỗi action sai có thể tạo hậu quả thật.",
+                        ],
+                        "callout": "Câu hỏi chính: khi nào chỉ cần chatbot, khi nào cần agent?",
+                    },
+                    {
+                        "page": 3,
+                        "layout": "compare",
+                        "title": "Chatbot vs Agent",
+                        "subtitle": "Khác biệt nằm ở quyền hành động",
+                        "eyebrow": "Core concept",
+                        "columns": [
+                            {
+                                "title": "Chatbot",
+                                "items": [
+                                    "Nhận câu hỏi và trả lời bằng text.",
+                                    "Phụ thuộc mạnh vào prompt và context.",
+                                    "Phù hợp giải thích, tóm tắt, hướng dẫn học.",
+                                ],
+                            },
+                            {
+                                "title": "Agent",
+                                "items": [
+                                    "Tự chọn bước tiếp theo trong một vòng lặp.",
+                                    "Có thể gọi tool, đọc kết quả rồi quyết định tiếp.",
+                                    "Phù hợp khi cần tra cứu, thao tác, kiểm tra trạng thái.",
+                                ],
+                            },
+                        ],
+                        "key_points": [
+                            "Agent không chỉ trả lời; agent có thể hành động qua công cụ.",
+                            "Càng nhiều quyền hành động thì càng cần ràng buộc, log và kiểm thử.",
+                        ],
+                    },
+                    {
+                        "page": 4,
+                        "layout": "loop",
+                        "title": "ReAct Loop",
+                        "subtitle": "Reasoning + Acting trong một chu kỳ có quan sát",
+                        "eyebrow": "Design pattern",
+                        "steps": [
+                            ("Thought", "Xác định mình cần biết hoặc cần làm gì tiếp."),
+                            ("Action", "Gọi một tool cụ thể với input rõ ràng."),
+                            ("Observation", "Đọc kết quả tool và cập nhật hướng giải."),
+                            ("Answer", "Trả lời người học bằng kết luận có căn cứ."),
+                        ],
+                        "key_points": [
+                            "ReAct buộc model tách phần suy luận nội bộ, hành động và quan sát.",
+                            "Prototype nên log từng action để debug lỗi agent.",
+                            "Giới hạn số vòng lặp là guardrail tối thiểu.",
+                        ],
+                    },
+                    {
+                        "page": 5,
+                        "layout": "tool",
+                        "title": "Tool Calling",
+                        "subtitle": "Cho model một cách làm việc với hệ thống thật",
+                        "eyebrow": "Implementation",
+                        "key_points": [
+                            "Tool schema cần mô tả input, output và điều kiện sử dụng.",
+                            "Không cho tool quyền rộng hơn nhu cầu của lát cắt prototype.",
+                            "Khi tool lỗi, agent cần báo thiếu căn cứ thay vì bịa kết quả.",
+                        ],
+                        "code": """tools = [{
+    "name": "search_lesson",
+    "description": "Find relevant lesson excerpts",
+    "parameters": {"query": "string", "page": "integer"}
+}]""",
+                    },
+                    {
+                        "page": 6,
+                        "layout": "guardrail",
+                        "title": "Guardrails Cho Tutor",
+                        "subtitle": "Giữ câu trả lời đúng nguồn, đúng phạm vi, đúng mức hỗ trợ",
+                        "eyebrow": "Safety",
+                        "key_points": [
+                            "Nếu slide không có căn cứ, tutor phải nói rõ và hỏi thêm.",
+                            "Mỗi câu trả lời nên kèm trích dẫn trang hoặc đoạn đang dùng.",
+                            "Tutor nên hỏi lại một câu ngắn để kiểm tra hiểu bài.",
+                        ],
+                        "callout": "Một tutor tốt không chỉ trả lời đúng; nó còn giúp người học tự phát hiện lỗ hổng hiểu biết.",
+                    },
+                ],
+            },
+            {
+                "id": "day03-d302",
+                "title": "Day03-D302-tu-chatbot-den-agent.pdf",
+                "filename": "Day03-D302-tu-chatbot-den-agent.pdf",
+                "pages": 60,
+                "slides": [
+                    {
+                        "page": 1,
+                        "layout": "concept",
+                        "title": "Agentic Agent Practice",
+                        "subtitle": "Bài thực hành thiết kế ReAct agent",
+                        "eyebrow": "Day03 · D302",
+                        "key_points": [
+                            "Chọn một workflow nhỏ có thể demo trong 5 phút.",
+                            "Viết rõ tool nào được gọi và bằng chứng nào được dùng.",
+                            "Đo lỗi theo tình huống thật, không chỉ theo test case đẹp.",
+                        ],
+                    }
+                ],
+            },
+        ],
+    },
+    {
+        "id": "day04",
+        "title": "Day04",
+        "summary": "3 tài liệu · PUBLISHED",
+        "status": "PUBLISHED",
+        "materials": [
+            {
+                "id": "day04-prompt",
+                "title": "day04-prompt-engineering.pdf",
+                "filename": "day04-prompt-engineering.pdf",
+                "pages": 48,
+                "slides": [
+                    {
+                        "page": 1,
+                        "layout": "concept",
+                        "title": "Prompt Engineering",
+                        "subtitle": "Chỉ thị, ví dụ và tiêu chí đánh giá",
+                        "eyebrow": "Day04",
+                        "key_points": [
+                            "Prompt cần nêu vai trò, mục tiêu, dữ liệu được phép dùng và dạng output.",
+                            "Few-shot giúp ổn định format khi task có chuẩn chấm rõ.",
+                            "Prompt không thay thế được nguồn dữ liệu đáng tin.",
+                        ],
+                    }
+                ],
+            }
+        ],
+    },
+    {
+        "id": "day05",
+        "title": "Day05",
+        "summary": "3 tài liệu · PUBLISHED",
+        "status": "PUBLISHED",
+        "materials": [
+            {
+                "id": "day05-eval",
+                "title": "day05-evaluation-validation.pdf",
+                "filename": "day05-evaluation-validation.pdf",
+                "pages": 35,
+                "slides": [
+                    {
+                        "page": 1,
+                        "layout": "concept",
+                        "title": "Evaluation & Validation",
+                        "subtitle": "Golden set, rubric và user test",
+                        "eyebrow": "Day05",
+                        "key_points": [
+                            "Golden set phải đại diện cho tình huống người học thật sự hỏi.",
+                            "Validation cần ghi nhận cả phản hồi tích cực và thất bại.",
+                            "Kết quả đo trung thực quan trọng hơn việc cố làm đẹp số liệu.",
+                        ],
+                    }
+                ],
+            }
+        ],
+    },
+]
 
-            response = "Tôi không có thông tin về câu hỏi này trong slide hiện tại. Bạn có thể hỏi về: temperature, token, system prompt, streaming, ReAct Agent, hoặc top-p."
-            for keyword, answer in mock_responses.items():
-                if keyword in user_input.lower():
-                    response = answer
-                    break
 
-            st.session_state.chat_history.append({"role": "assistant", "content": response})
+def compact_text_lines(text: str, limit: int = 7) -> list[str]:
+    lines: list[str] = []
+    for raw_line in text.splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if len(line) < 2:
+            continue
+        if line.isdigit():
+            continue
+        lines.append(line)
+        if len(lines) >= limit:
+            break
+    return lines
+
+
+@st.cache_data(show_spinner=False)
+def pdf_page_count(pdf_path: str) -> int:
+    if fitz is None:
+        return 1
+    try:
+        with fitz.open(pdf_path) as doc:
+            return max(doc.page_count, 1)
+    except Exception:
+        return 1
+
+
+@st.cache_data(show_spinner=False)
+def pdf_page_text(pdf_path: str, page: int) -> str:
+    if fitz is None:
+        return ""
+    try:
+        with fitz.open(pdf_path) as doc:
+            page_index = min(max(page - 1, 0), doc.page_count - 1)
+            return doc.load_page(page_index).get_text("text").strip()
+    except Exception:
+        return ""
+
+
+@st.cache_data(show_spinner=False)
+def pdf_page_png(pdf_path: str, page: int, zoom_percent: int) -> bytes:
+    if fitz is None:
+        return b""
+    with fitz.open(pdf_path) as doc:
+        page_index = min(max(page - 1, 0), doc.page_count - 1)
+        matrix = fitz.Matrix(1.55 * zoom_percent / 100, 1.55 * zoom_percent / 100)
+        pixmap = doc.load_page(page_index).get_pixmap(matrix=matrix, alpha=False)
+        return pixmap.tobytes("png")
+
+
+@st.cache_data(show_spinner=False)
+def pdf_page_size(pdf_path: str, page: int) -> tuple[float, float]:
+    if fitz is None:
+        return (1.0, 1.0)
+    with fitz.open(pdf_path) as doc:
+        page_index = min(max(page - 1, 0), doc.page_count - 1)
+        rect = doc.load_page(page_index).rect
+        return (float(rect.width), float(rect.height))
+
+
+@st.cache_data(show_spinner=False)
+def pdf_page_words(pdf_path: str, page: int) -> list[tuple[float, float, float, float, str]]:
+    if fitz is None:
+        return []
+    with fitz.open(pdf_path) as doc:
+        page_index = min(max(page - 1, 0), doc.page_count - 1)
+        words = doc.load_page(page_index).get_text("words")
+        return [
+            (float(x0), float(y0), float(x1), float(y1), str(text))
+            for x0, y0, x1, y1, text, *_ in words
+            if str(text).strip()
+        ]
+
+
+@st.cache_data(show_spinner=False)
+def pdf_file_bytes(pdf_path: str) -> bytes:
+    return Path(pdf_path).read_bytes()
+
+
+@st.cache_data(show_spinner=False)
+def asset_data_uri(path: str) -> str:
+    asset = Path(path)
+    if not asset.exists():
+        return ""
+    suffix = asset.suffix.lower()
+    mime = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".svg": "image/svg+xml",
+    }.get(suffix, "application/octet-stream")
+    return f"data:{mime};base64,{base64.b64encode(asset.read_bytes()).decode('ascii')}"
+
+
+def build_pdf_decks() -> list[dict[str, Any]]:
+    if not SLIDE_PDF_DIR.exists():
+        return []
+
+    decks: list[dict[str, Any]] = []
+    for pdf_path in sorted(SLIDE_PDF_DIR.glob("Day*.pdf")):
+        day_id = pdf_path.stem.lower()
+        material_id = f"{day_id}-pdf"
+        pages = pdf_page_count(str(pdf_path.resolve()))
+        decks.append(
+            {
+                "id": day_id,
+                "title": pdf_path.stem,
+                "summary": f"1 tài liệu · {pages} trang · PUBLISHED",
+                "status": "STUDYING" if day_id == "day03" else "PUBLISHED",
+                "materials": [
+                    {
+                        "id": material_id,
+                        "title": pdf_path.name,
+                        "filename": pdf_path.name,
+                        "pages": pages,
+                        "pdf_path": str(pdf_path.resolve()),
+                        "slides": [],
+                    }
+                ],
+            }
+        )
+    return decks
+
+
+def load_decks() -> tuple[list[dict[str, Any]], str | None]:
+    """Load curated metadata, auto-detected PDFs, or demo slides."""
+    if not EXTERNAL_DECKS_PATH.exists():
+        pdf_decks = build_pdf_decks()
+        if pdf_decks:
+            return pdf_decks, None
+        return DEMO_DECKS, None
+
+    try:
+        payload = json.loads(EXTERNAL_DECKS_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        pdf_decks = build_pdf_decks()
+        if pdf_decks:
+            return pdf_decks, f"Không đọc được slides/decks.json, đang dùng PDF tự phát hiện: {exc}"
+        return DEMO_DECKS, f"Không đọc được slides/decks.json: {exc}"
+
+    if isinstance(payload, dict) and isinstance(payload.get("days"), list):
+        return payload["days"], None
+    if isinstance(payload, list):
+        return payload, None
+    return DEMO_DECKS, "slides/decks.json cần là list hoặc object có field days."
+
+
+DECKS, DECK_LOAD_WARNING = load_decks()
+
+
+def flatten_materials(decks: list[dict[str, Any]]) -> dict[str, tuple[dict[str, Any], dict[str, Any]]]:
+    lookup: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
+    for deck in decks:
+        for material in deck.get("materials", []):
+            lookup[material["id"]] = (deck, material)
+    return lookup
+
+
+MATERIAL_LOOKUP = flatten_materials(DECKS)
+if "day03-pdf" in MATERIAL_LOOKUP:
+    DEFAULT_MATERIAL_ID = "day03-pdf"
+elif "day03-react" in MATERIAL_LOOKUP:
+    DEFAULT_MATERIAL_ID = "day03-react"
+else:
+    DEFAULT_MATERIAL_ID = next(iter(MATERIAL_LOOKUP))
+
+
+def ensure_state() -> None:
+    defaults = {
+        "material_id": DEFAULT_MATERIAL_ID,
+        "page": 1,
+        "zoom": 100,
+        "selected_passage": "",
+        "chat_history": [],
+        "notes": {},
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+    if st.session_state.material_id not in MATERIAL_LOOKUP:
+        st.session_state.material_id = DEFAULT_MATERIAL_ID
+        st.session_state.page = 1
+
+
+def current_deck_material() -> tuple[dict[str, Any], dict[str, Any]]:
+    return MATERIAL_LOOKUP[st.session_state.material_id]
+
+
+def slide_by_page(material: dict[str, Any], page: int) -> dict[str, Any]:
+    for slide in material.get("slides", []):
+        if int(slide.get("page", -1)) == page:
+            slide = dict(slide)
+            if material.get("pdf_path"):
+                text = pdf_page_text(material["pdf_path"], page)
+                slide["pdf_text"] = text
+                if not slide.get("key_points"):
+                    slide["key_points"] = compact_text_lines(text, limit=6)[1:]
+            return slide
+
+    if material.get("pdf_path"):
+        text = pdf_page_text(material["pdf_path"], page)
+        lines = compact_text_lines(text, limit=7)
+        title = lines[0] if lines else f"Trang {page}"
+        return {
+            "page": page,
+            "layout": "pdf",
+            "title": title,
+            "subtitle": f"Trang PDF thực tế từ {material.get('filename', 'slide deck')}",
+            "eyebrow": material.get("filename", "PDF"),
+            "key_points": lines[1:] if len(lines) > 1 else lines,
+            "pdf_text": text,
+        }
+
+    return {
+        "page": page,
+        "layout": "placeholder",
+        "title": f"Trang {page} đang chờ slide mẫu",
+        "subtitle": "Thêm nội dung thật trong codebase/slides/decks.json khi nhóm có file mẫu.",
+        "eyebrow": "Placeholder",
+        "key_points": [
+            "Tutor vẫn dùng tiêu đề tài liệu, số trang và ghi chú hiện có làm ngữ cảnh.",
+            "Khi thêm slide thật, điền title, subtitle, key_points, callout hoặc code.",
+            "Câu trả lời sẽ tự kèm trích dẫn theo số trang hiện tại.",
+        ],
+        "callout": "Trang này là placeholder để demo luồng học trước khi có slide thật.",
+    }
+
+
+def material_page_count(material: dict[str, Any]) -> int:
+    return max(int(material.get("pages", 1)), 1)
+
+
+def set_material(material_id: str) -> None:
+    st.session_state.material_id = material_id
+    st.session_state.page = 1
+    st.session_state.selected_passage = ""
+
+
+def move_page(delta: int) -> None:
+    _, material = current_deck_material()
+    st.session_state.page = min(
+        max(1, st.session_state.page + delta),
+        material_page_count(material),
+    )
+
+
+def clean_join(items: list[str]) -> str:
+    return " ".join(item.strip() for item in items if item and item.strip())
+
+
+def slide_context(slide: dict[str, Any], material: dict[str, Any], selected: str = "") -> str:
+    pdf_text = slide.get("pdf_text", "").strip()
+    parts = [
+        f"Tài liệu: {material.get('title', material.get('filename', 'slide deck'))}",
+        f"Trang: {slide.get('page')}",
+        f"Tiêu đề: {slide.get('title', '')}",
+        f"Phụ đề: {slide.get('subtitle', '')}",
+        "Ý chính: " + clean_join(slide.get("key_points", [])),
+    ]
+    if pdf_text:
+        parts.append("Nội dung trích xuất từ PDF:\n" + pdf_text[:4000])
+    if slide.get("callout"):
+        parts.append(f"Ghi chú nổi bật: {slide['callout']}")
+    if slide.get("code"):
+        parts.append(f"Code trên slide: {slide['code']}")
+    if selected:
+        parts.append(f"Nội dung học viên đã chọn: {selected}")
+    return "\n".join(parts)
+
+
+def get_deepseek_answer(
+    question: str,
+    slide: dict[str, Any],
+    material: dict[str, Any],
+    selected_passage: str,
+) -> str | None:
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    if not api_key or OpenAI is None:
+        return None
+
+    client = OpenAI(
+        api_key=api_key,
+        base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+    )
+    model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+
+    history = st.session_state.chat_history[-6:]
+    messages: list[dict[str, str]] = [
+        {
+            "role": "system",
+            "content": (
+                "Bạn là VLearn Tutor, trợ lý học theo ngữ cảnh slide. "
+                "Chỉ trả lời dựa trên ngữ cảnh được cung cấp. Nếu thiếu căn cứ, nói rõ thiếu căn cứ "
+                "và đề xuất người học mở đúng trang hoặc cung cấp thêm nội dung đã chọn. "
+                "Trả lời ngắn, có cấu trúc, bằng tiếng Việt. Luôn kèm trích dẫn dạng [trang N]. "
+                "Kết thúc bằng một câu hỏi kiểm tra hiểu bài khi phù hợp."
+            ),
+        },
+        {
+            "role": "user",
+            "content": "Ngữ cảnh slide:\n" + slide_context(slide, material, selected_passage),
+        },
+    ]
+    for item in history:
+        messages.append({"role": item["role"], "content": item["content"]})
+    messages.append({"role": "user", "content": question})
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=0.2,
+        max_tokens=700,
+    )
+    return response.choices[0].message.content or ""
+
+
+def fallback_answer(question: str, slide: dict[str, Any], material: dict[str, Any], selected: str) -> str:
+    lower_question = question.lower()
+    page = slide.get("page", st.session_state.page)
+    pdf_lines = compact_text_lines(slide.get("pdf_text", ""), limit=8)
+    points = slide.get("key_points", []) or pdf_lines[1:6]
+    context_line = selected.strip() or (points[0] if points else slide.get("subtitle", "nội dung trang này"))
+
+    if any(term in lower_question for term in ["tóm tắt", "tom tat", "summary", "summarize"]):
+        bullets = "\n".join(f"- {point}" for point in points[:4]) or f"- {context_line}"
+        return (
+            f"Tóm tắt [trang {page}]:\n{bullets}\n\n"
+            "Câu kiểm tra: ý nào trên trang này là quan trọng nhất với bài học hiện tại?"
+        )
+
+    if any(term in lower_question for term in ["kiểm tra", "kiem tra", "quiz", "hỏi lại", "hoi lai"]):
+        return (
+            f"Câu hỏi kiểm tra [trang {page}]: Nếu người học hỏi một câu mà slide không có đủ căn cứ, "
+            "VLearn Tutor nên trả lời trực tiếp, hỏi thêm, hay từ chối có hướng dẫn? Vì sao?"
+        )
+
+    if any(term in lower_question for term in ["react", "agent", "tool", "chatbot"]):
+        if slide.get("pdf_text") and not any(
+            keyword in slide["pdf_text"].lower()
+            for keyword in ["react", "agent", "tool", "chatbot", "llm"]
+        ):
+            return (
+                f"Mình chưa thấy đủ căn cứ trên [trang {page}] để trả lời chắc về ReAct, agent hoặc tool. "
+                "Bạn hãy chuyển đến trang có nội dung liên quan hoặc dán nội dung đã chọn để mình giải thích đúng nguồn."
+            )
+        return (
+            f"Dựa trên [trang {page}], ý chính là: chatbot chủ yếu sinh câu trả lời từ ngữ cảnh, "
+            "còn agent có thêm quyền chọn hành động như gọi tool, đọc observation rồi mới kết luận. "
+            "Vì agent có thể tác động ra ngoài phần trả lời text, nhóm cần guardrail: giới hạn vòng lặp, "
+            "schema tool rõ ràng và log từng bước.\n\n"
+            "Câu kiểm tra: trong prototype của bạn, tool nào là tool nhỏ nhất nhưng vẫn chứng minh được giá trị?"
+        )
+
+    if any(term in lower_question for term in ["trích dẫn", "citation", "nguồn", "can cu", "căn cứ"]):
+        return (
+            f"Căn cứ hiện có nằm ở [trang {page}] của `{material.get('filename', material.get('title'))}`. "
+            f"Đoạn liên quan nhất là: \"{context_line}\". Nếu muốn tutor chính xác hơn, hãy dán nội dung đã chọn "
+            "hoặc thêm nội dung slide thật vào `slides/decks.json`."
+        )
+
+    return (
+        f"Mình sẽ giải thích dựa trên [trang {page}]. Ý quan trọng là: {context_line}. "
+        "Khi học phần này, hãy tự hỏi: hệ thống đang chỉ trả lời bằng text hay được phép thực hiện hành động "
+        "qua tool? Câu trả lời quyết định thiết kế guardrail và cách đánh giá lỗi.\n\n"
+        "Câu kiểm tra: bạn sẽ đo lỗi của tutor ở tình huống này bằng tiêu chí nào?"
+    )
+
+
+def ask_tutor(question: str) -> None:
+    question = question.strip()
+    if not question:
+        return
+
+    _, material = current_deck_material()
+    slide = slide_by_page(material, st.session_state.page)
+    selected = st.session_state.selected_passage.strip()
+    st.session_state.chat_history.append({"role": "user", "content": question})
+
+    try:
+        answer = get_deepseek_answer(question, slide, material, selected)
+    except Exception as exc:
+        answer = (
+            "DeepSeek chưa trả lời được ở lượt này, nên mình dùng chế độ demo. "
+            f"Lỗi kỹ thuật: {exc}"
+        )
+
+    if not answer:
+        answer = fallback_answer(question, slide, material, selected)
+    st.session_state.chat_history.append({"role": "assistant", "content": answer})
+
+
+def html_list(items: list[str]) -> str:
+    return "".join(f"<li>{html.escape(item)}</li>" for item in items)
+
+
+def render_slide(slide: dict[str, Any], material: dict[str, Any], preview: bool = False) -> str:
+    layout = slide.get("layout", "concept")
+    page = int(slide.get("page", 1))
+    title = html.escape(slide.get("title", f"Trang {page}"))
+    subtitle = html.escape(slide.get("subtitle", ""))
+    eyebrow = html.escape(slide.get("eyebrow", "Slide"))
+    filename = html.escape(material.get("filename", material.get("title", "")))
+    preview_class = " is-preview" if preview else ""
+
+    if layout == "cover":
+        body = f"""
+        <div class="cover-panel">
+            <div class="brand-mark">V</div>
+            <div class="cover-brand">{eyebrow}</div>
+            <h1>{title}</h1>
+            <p>{subtitle}</p>
+            <div class="cover-footer">{html.escape(slide.get("footer", ""))}</div>
+        </div>
+        """
+    elif layout == "compare":
+        columns = slide.get("columns", [])
+        column_html = ""
+        for col in columns[:2]:
+            column_html += f"""
+            <div class="compare-card">
+                <h3>{html.escape(col.get("title", ""))}</h3>
+                <ul>{html_list(col.get("items", []))}</ul>
+            </div>
+            """
+        body = f"""
+        <div class="slide-heading">
+            <span>{eyebrow}</span>
+            <h2>{title}</h2>
+            <p>{subtitle}</p>
+        </div>
+        <div class="compare-grid">{column_html}</div>
+        """
+    elif layout == "loop":
+        steps = slide.get("steps", [])
+        step_html = ""
+        for idx, step in enumerate(steps, start=1):
+            label, desc = step
+            step_html += f"""
+            <div class="loop-step">
+                <div class="step-index">{idx}</div>
+                <div><strong>{html.escape(label)}</strong><p>{html.escape(desc)}</p></div>
+            </div>
+            """
+        body = f"""
+        <div class="slide-heading">
+            <span>{eyebrow}</span>
+            <h2>{title}</h2>
+            <p>{subtitle}</p>
+        </div>
+        <div class="loop-grid">{step_html}</div>
+        """
+    elif layout == "tool":
+        code = html.escape(slide.get("code", ""))
+        body = f"""
+        <div class="slide-heading">
+            <span>{eyebrow}</span>
+            <h2>{title}</h2>
+            <p>{subtitle}</p>
+        </div>
+        <div class="split-grid">
+            <ul class="large-points">{html_list(slide.get("key_points", []))}</ul>
+            <pre>{code}</pre>
+        </div>
+        """
+    else:
+        body = f"""
+        <div class="slide-heading">
+            <span>{eyebrow}</span>
+            <h2>{title}</h2>
+            <p>{subtitle}</p>
+        </div>
+        <ul class="large-points">{html_list(slide.get("key_points", []))}</ul>
+        """
+        if slide.get("callout"):
+            body += f"""<div class="slide-callout">{html.escape(slide["callout"])}</div>"""
+
+    return f"""
+    <section class="sheet{preview_class}">
+        <div class="sheet-meta">
+            <span>Trang {page} / {material_page_count(material)}</span>
+            <span>{filename}</span>
+        </div>
+        <div class="slide-canvas {html.escape(layout)}">
+            {body}
+        </div>
+    </section>
+    """
+
+
+def render_pdf_text_layer(pdf_path: str, page: int) -> str:
+    page_width, page_height = pdf_page_size(pdf_path, page)
+    if page_width <= 0 or page_height <= 0:
+        return ""
+
+    spans: list[str] = []
+    for x0, y0, x1, y1, text in pdf_page_words(pdf_path, page):
+        left = max(0.0, min(100.0, x0 / page_width * 100))
+        top = max(0.0, min(100.0, y0 / page_height * 100))
+        width = max(0.1, min(100.0 - left, (x1 - x0) / page_width * 100))
+        height = max(0.1, min(100.0 - top, (y1 - y0) / page_height * 100))
+        spans.append(
+            "<span style="
+            f"'left:{left:.3f}%;top:{top:.3f}%;width:{width:.3f}%;height:{height:.3f}%;'"
+            f">{html.escape(text)}</span>"
+        )
+    return "".join(spans)
+
+
+def render_pdf_sheet(material: dict[str, Any], page: int) -> str:
+    slide = slide_by_page(material, page)
+    filename = html.escape(material.get("filename", material.get("title", "")))
+    title = html.escape(slide.get("title", f"Trang {page}"))
+    pdf_path = material["pdf_path"]
+
+    try:
+        image = pdf_page_png(pdf_path, page, st.session_state.zoom)
+    except Exception as exc:
+        fallback_slide = {
+            "page": page,
+            "layout": "placeholder",
+            "title": f"Không render được PDF trang {page}",
+            "subtitle": str(exc),
+            "eyebrow": "PDF render error",
+            "key_points": [
+                "Kiểm tra PyMuPDF đã được cài trong môi trường chạy app.",
+                "Nếu chỉ cần demo tutor, phần text trích xuất vẫn có thể được dùng làm ngữ cảnh.",
+            ],
+        }
+        return render_slide(fallback_slide, material)
+
+    image_b64 = base64.b64encode(image).decode("ascii")
+    text_layer = render_pdf_text_layer(pdf_path, page)
+    return f"""
+    <section class="sheet pdf-sheet" id="pdf-page-{page}">
+        <div class="sheet-meta">
+            <span>Trang {page} / {material_page_count(material)}</span>
+            <span>{filename}</span>
+        </div>
+        <div class="pdf-frame">
+            <img src="data:image/png;base64,{image_b64}" alt="{title}" />
+            <div class="pdf-text-layer" aria-label="Selectable text layer for page {page}">
+                {text_layer}
+            </div>
+        </div>
+    </section>
+    """
+
+
+def render_pdf_document(material: dict[str, Any]) -> None:
+    pdf_path = material.get("pdf_path")
+    if not pdf_path:
+        return
+
+    total_pages = material_page_count(material)
+    with st.container(height=620, border=False, key="pdf_scroller"):
+        for page in range(1, total_pages + 1):
+            st.markdown(render_pdf_sheet(material, page), unsafe_allow_html=True)
+
+
+def render_css() -> None:
+    st.markdown(
+        """
+<style>
+    :root {
+        --ink: #142033;
+        --muted: #6d7e98;
+        --line: #dbe4ef;
+        --blue: #145da0;
+        --blue-strong: #0a4a8a;
+        --blue-soft: #e7f1fb;
+        --panel: #f8fbff;
+        --paper: #fffdf5;
+        --green: #00856f;
+        --red: #c91f37;
+    }
+
+    .stApp {
+        background: #f3f7fb;
+        color: var(--ink);
+    }
+
+    header, footer, #MainMenu {
+        visibility: hidden;
+    }
+
+    .block-container {
+        max-width: 100%;
+        padding: 0.65rem 1rem 0.8rem;
+    }
+
+    div[data-testid="stVerticalBlock"] {
+        gap: 0.62rem;
+    }
+
+    .topbar {
+        height: 58px;
+        display: grid;
+        grid-template-columns: 220px 1fr auto;
+        align-items: center;
+        gap: 16px;
+        padding: 0 14px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 1px 8px rgba(20, 32, 51, 0.06);
+        margin: -0.65rem -1rem 0.5rem;
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 800;
+        font-size: 1.25rem;
+    }
+
+    .brand-logo-crop {
+        width: 132px;
+        height: 50px;
+        overflow: hidden;
+        position: relative;
+        flex: 0 0 auto;
+    }
+
+    .brand-logo-img {
+        width: 128px;
+        height: 128px;
+        object-fit: contain;
+        object-position: center;
+        display: block;
+        transform: translateY(-29px);
+    }
+
+    .doc-title strong {
+        display: block;
+        font-size: 1.04rem;
+        line-height: 1.15;
+    }
+
+    .doc-title span,
+    .top-actions {
+        color: var(--muted);
+        font-size: 0.78rem;
+    }
+
+    .top-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        white-space: nowrap;
+    }
+
+    .pill {
+        border: 1px solid var(--line);
+        background: white;
+        border-radius: 999px;
+        padding: 6px 11px;
+        font-weight: 700;
+        color: var(--blue-strong);
+    }
+
+    .panel-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 11px 10px;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .panel-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        border: 1px solid #cbdcf0;
+        background: var(--blue-soft);
+        color: var(--blue-strong);
+        font-weight: 900;
+    }
+
+    .panel-title h2 {
+        font-size: 1rem;
+        margin: 0;
+        letter-spacing: 0;
+    }
+
+    .panel-title p {
+        margin: 1px 0 0;
+        color: var(--muted);
+        font-size: 0.78rem;
+    }
+
+    .day-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfdff;
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+
+    .day-card.active {
+        border-color: #9fc5ee;
+        background: #eef6ff;
+    }
+
+    .day-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .day-title {
+        font-weight: 800;
+        font-size: 0.95rem;
+    }
+
+    .day-summary {
+        color: #8496b2;
+        font-size: 0.74rem;
+        margin-top: 3px;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+
+    .status-chip {
+        border-radius: 999px;
+        background: #d9e8f3;
+        color: var(--blue-strong);
+        padding: 4px 10px;
+        font-size: 0.67rem;
+        font-weight: 900;
+    }
+
+    .toolbar {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 8px;
+        padding: 8px 10px;
+        box-shadow: 0 2px 8px rgba(20, 32, 51, 0.06);
+    }
+
+    .tool-group {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .tool-button {
+        border: 1px solid var(--line);
+        background: #f9fbfe;
+        color: #33445f;
+        border-radius: 8px;
+        padding: 7px 11px;
+        font-size: 0.78rem;
+        font-weight: 800;
+    }
+
+    .tool-button.active {
+        color: var(--blue-strong);
+        background: #eaf4ff;
+        border-color: #b8d6f3;
+    }
+
+    .context-pill {
+        min-height: 2.35rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #b8d6f3;
+        background: #eaf4ff;
+        color: var(--blue-strong);
+        border-radius: 8px;
+        padding: 0 11px;
+        font-size: 0.78rem;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .stage {
+        height: calc(100vh - 155px);
+        min-height: 620px;
+        overflow: auto;
+        border-left: 1px solid var(--line);
+        border-right: 1px solid var(--line);
+        background:
+            linear-gradient(#ece6d4 1px, transparent 1px),
+            var(--paper);
+        background-size: 100% 31px;
+        padding: 18px 22px 36px;
+    }
+
+    .st-key-pdf_scroller {
+        height: calc(100vh - 155px) !important;
+        min-height: 620px;
+        overflow: auto !important;
+        border-left: 1px solid var(--line);
+        border-right: 1px solid var(--line);
+        background:
+            linear-gradient(#ece6d4 1px, transparent 1px),
+            var(--paper);
+        background-size: 100% 31px;
+        padding: 18px 22px 36px;
+    }
+
+    .st-key-pdf_scroller div[data-testid="stVerticalBlock"] {
+        gap: 0;
+    }
+
+    .sheet {
+        max-width: 980px;
+        margin: 0 auto 30px;
+        background: rgba(255, 253, 245, 0.96);
+        border: 1px solid #8cc2ea;
+        border-radius: 8px;
+        padding: 18px 20px 22px;
+        box-shadow: 0 3px 12px rgba(20, 32, 51, 0.12);
+    }
+
+    .sheet.is-preview {
+        opacity: 0.76;
+    }
+
+    .sheet-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        color: #8294b0;
+        font-size: 0.72rem;
+        font-weight: 700;
+        margin-bottom: 14px;
+    }
+
+    .pdf-sheet {
+        background: #ffffff;
+        padding: 14px;
+        max-width: 980px;
+    }
+
+    .pdf-frame {
+        position: relative;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #ffffff;
+        border: 1px solid #e3e9f2;
+    }
+
+    .pdf-frame img {
+        display: block;
+        width: 100%;
+        height: auto;
+    }
+
+    .pdf-text-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        user-select: text;
+        pointer-events: auto;
+    }
+
+    .pdf-text-layer span {
+        position: absolute;
+        display: block;
+        overflow: hidden;
+        color: transparent;
+        line-height: 1;
+        white-space: nowrap;
+        font-size: 10px;
+        user-select: text;
+    }
+
+    .pdf-text-layer span::selection {
+        background: rgba(255, 225, 92, 0.5);
+        color: transparent;
+    }
+
+    .slide-canvas {
+        min-height: 325px;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #ffffff;
+        border: 1px solid #e3e9f2;
+        position: relative;
+    }
+
+    .slide-canvas.cover {
+        min-height: 326px;
+        background:
+            linear-gradient(rgba(10, 74, 138, 0.75), rgba(10, 74, 138, 0.62)),
+            radial-gradient(circle at 78% 48%, rgba(255, 255, 255, 0.18), transparent 24%),
+            linear-gradient(145deg, #0e4d86 0%, #2c74ad 45%, #9bb7c6 100%);
+        color: white;
+    }
+
+    .cover-panel {
+        min-height: 326px;
+        display: grid;
+        place-items: center;
+        align-content: center;
+        gap: 10px;
+        text-align: center;
+        padding: 34px;
+    }
+
+    .brand-mark {
+        width: 50px;
+        height: 50px;
+        display: grid;
+        place-items: center;
+        clip-path: polygon(50% 0, 100% 30%, 100% 68%, 50% 100%, 0 68%, 0 30%);
+        background: white;
+        color: var(--blue-strong);
+        font-weight: 900;
+        font-size: 1.45rem;
+    }
+
+    .cover-brand {
+        font-weight: 900;
+        font-size: 1.42rem;
+    }
+
+    .cover-panel h1 {
+        font-size: 1.72rem;
+        margin: 18px 0 0;
+        letter-spacing: 0;
+    }
+
+    .cover-panel p {
+        margin: 0;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.92);
+    }
+
+    .cover-footer {
+        margin-top: 34px;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    .slide-heading {
+        padding: 34px 42px 10px;
+    }
+
+    .slide-heading span {
+        color: var(--red);
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        font-weight: 900;
+    }
+
+    .slide-heading h2 {
+        margin: 8px 0 4px;
+        font-size: 1.7rem;
+        letter-spacing: 0;
+    }
+
+    .slide-heading p {
+        color: var(--muted);
+        margin: 0;
+        font-size: 0.95rem;
+    }
+
+    .large-points {
+        padding: 6px 56px 22px 64px;
+        margin: 0;
+        color: #20314a;
+        line-height: 1.75;
+        font-size: 0.95rem;
+    }
+
+    .slide-callout {
+        margin: 4px 42px 34px;
+        border-left: 4px solid var(--red);
+        background: #fff6f3;
+        padding: 12px 14px;
+        color: #54322b;
+        font-weight: 700;
+        border-radius: 0 8px 8px 0;
+    }
+
+    .compare-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        padding: 12px 42px 38px;
+    }
+
+    .compare-card {
+        border: 1px solid #d8e3ee;
+        background: #f8fbff;
+        border-radius: 8px;
+        padding: 18px 18px 12px;
+        min-height: 190px;
+    }
+
+    .compare-card h3 {
+        margin: 0 0 10px;
+        color: var(--blue-strong);
+    }
+
+    .compare-card ul {
+        margin: 0;
+        padding-left: 20px;
+        line-height: 1.55;
+        color: #253650;
+    }
+
+    .loop-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        padding: 16px 42px 38px;
+    }
+
+    .loop-step {
+        display: grid;
+        grid-template-columns: 42px 1fr;
+        gap: 12px;
+        align-items: start;
+        border: 1px solid #d8e3ee;
+        background: #f9fbfe;
+        border-radius: 8px;
+        padding: 14px;
+    }
+
+    .step-index {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        background: var(--blue-strong);
+        color: white;
+        font-weight: 900;
+    }
+
+    .loop-step p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        line-height: 1.45;
+    }
+
+    .split-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        padding: 12px 42px 38px;
+    }
+
+    .split-grid .large-points {
+        padding: 0 0 0 20px;
+    }
+
+    pre {
+        margin: 0;
+        border-radius: 8px;
+        padding: 16px;
+        background: #162235;
+        color: #e9f1fb;
+        overflow: auto;
+        font-size: 0.78rem;
+        line-height: 1.55;
+    }
+
+    .chat-context {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+        padding: 11px 12px;
+        color: var(--muted);
+        font-size: 0.76rem;
+    }
+
+    .chat-context strong {
+        display: block;
+        color: var(--ink);
+        font-size: 0.85rem;
+        margin-bottom: 2px;
+    }
+
+    .assistant-empty {
+        border: 1px solid var(--line);
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        line-height: 1.55;
+        color: var(--ink);
+        box-shadow: 0 1px 5px rgba(20, 32, 51, 0.06);
+    }
+
+    .small-muted {
+        color: var(--muted);
+        font-size: 0.75rem;
+        line-height: 1.45;
+    }
+
+    div.stButton > button {
+        border-radius: 8px;
+        min-height: 2.35rem;
+        font-weight: 800;
+        letter-spacing: 0;
+    }
+
+    div[data-testid="stTextArea"] textarea,
+    div[data-testid="stTextInput"] input {
+        border-radius: 8px;
+    }
+
+    @media (max-width: 960px) {
+        .topbar {
+            grid-template-columns: 1fr;
+            height: auto;
+            padding: 10px 14px;
+        }
+
+        .top-actions {
+            display: none;
+        }
+
+        .toolbar {
+            grid-template-columns: 1fr;
+        }
+
+        .stage {
+            height: auto;
+            min-height: 0;
+            padding: 12px;
+        }
+
+        .compare-grid,
+        .loop-grid,
+        .split-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .slide-heading,
+        .compare-grid,
+        .loop-grid,
+        .split-grid {
+            padding-left: 22px;
+            padding-right: 22px;
+        }
+
+        .large-points {
+            padding-left: 42px;
+            padding-right: 22px;
+        }
+    }
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_topbar(material: dict[str, Any]) -> None:
+    status = "DeepSeek ready" if os.getenv("DEEPSEEK_API_KEY") and OpenAI is not None else "Demo tutor"
+    logo_uri = asset_data_uri(str(LOGO_PATH))
+    brand_html = (
+        f'<div class="brand-logo-crop"><img class="brand-logo-img" src="{logo_uri}" alt="VinUniversity" /></div>'
+        if logo_uri
+        else '<strong>VLearn</strong>'
+    )
+    st.markdown(
+        f"""
+        <div class="topbar">
+            <div class="brand">{brand_html}</div>
+            <div class="doc-title">
+                <strong>{html.escape(material.get("title", ""))}</strong>
+                <span>COMP2010 · Lecture material · contextual study mode</span>
+            </div>
+            <div class="top-actions">
+                <span class="pill">VI</span>
+                <span class="pill">{status}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_left_panel() -> None:
+    st.markdown(
+        """
+        <div class="panel-title">
+            <div class="panel-icon">B</div>
+            <div>
+                <h2>Học liệu môn học</h2>
+                <p>Chương, slide và tài liệu đã upload</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if DECK_LOAD_WARNING:
+        st.warning(DECK_LOAD_WARNING)
+
+    for deck in DECKS:
+        active = any(m["id"] == st.session_state.material_id for m in deck.get("materials", []))
+        st.markdown(
+            f"""
+            <div class="day-card{' active' if active else ''}">
+                <div class="day-row">
+                    <div>
+                        <div class="day-title">{html.escape(deck.get("title", ""))}</div>
+                        <div class="day-summary">{html.escape(deck.get("summary", ""))}</div>
+                    </div>
+                    <div class="status-chip">{html.escape(deck.get("status", "PUBLISHED"))}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if active:
+            for material in deck.get("materials", []):
+                selected = material["id"] == st.session_state.material_id
+                label = f"{material.get('title', 'deck')} · {material_page_count(material)} trang"
+                if st.button(
+                    label,
+                    key=f"material_{material['id']}",
+                    use_container_width=True,
+                    type="primary" if selected else "secondary",
+                ):
+                    set_material(material["id"])
+                    st.rerun()
+        else:
+            first_material = deck.get("materials", [{}])[0].get("id")
+            if first_material and st.button("Mở tài liệu", key=f"open_{deck['id']}", use_container_width=True):
+                set_material(first_material)
+                st.rerun()
+
+    st.markdown(
+        """
+        <p class="small-muted">
+        App tự đọc PDF trong <code>../Slide-AIThucChien</code>. Dùng <code>slides/decks.json</code> nếu cần metadata chi tiết hơn.
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_toolbar(material: dict[str, Any]) -> None:
+    page = st.session_state.page
+    total_pages = material_page_count(material)
+
+    if material.get("pdf_path"):
+        with st.container(border=True):
+            nav_cols = st.columns([0.75, 1.4, 1.0, 0.55, 0.8, 0.55, 1.9, 1.0], gap="small")
+            with nav_cols[0]:
+                st.button("Đọc", use_container_width=True, type="primary", key="read_mode_pdf")
+            with nav_cols[1]:
+                st.button("Highlight", use_container_width=True, key="highlight_mode_pdf")
+            with nav_cols[2]:
+                if st.button("Copy text", use_container_width=True, key="copy_text_pdf"):
+                    st.session_state.selected_passage = pdf_page_text(material["pdf_path"], page)[:3000]
+                    st.rerun()
+            with nav_cols[3]:
+                if st.button("<", use_container_width=True, disabled=page <= 1, key="prev_top_pdf"):
+                    move_page(-1)
+                    st.rerun()
+            with nav_cols[4]:
+                selected_page = st.number_input(
+                    "Trang",
+                    min_value=1,
+                    max_value=total_pages,
+                    value=page,
+                    step=1,
+                    label_visibility="collapsed",
+                    key=f"page_picker_pdf_{st.session_state.material_id}_{page}",
+                )
+                if int(selected_page) != page:
+                    st.session_state.page = int(selected_page)
+                    st.rerun()
+            with nav_cols[5]:
+                if st.button(">", use_container_width=True, disabled=page >= total_pages, key="next_top_pdf"):
+                    move_page(1)
+                    st.rerun()
+            with nav_cols[6]:
+                st.markdown(
+                    f"<div class='context-pill'>Ngữ cảnh tutor: trang {page} / {total_pages}</div>",
+                    unsafe_allow_html=True,
+                )
+            with nav_cols[7]:
+                st.download_button(
+                    "PDF gốc",
+                    data=pdf_file_bytes(material["pdf_path"]),
+                    file_name=material.get("filename", "slides.pdf"),
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="download_pdf",
+                )
+        return
+
+    st.markdown(
+        f"""
+        <div class="toolbar">
+            <div class="tool-group">
+                <span class="tool-button active">Đọc</span>
+                <span class="tool-button">Bút</span>
+                <span class="tool-button">Highlight</span>
+                <span class="tool-button">...</span>
+            </div>
+            <div class="tool-group" style="justify-content:center;">
+                <span class="tool-button active">Trang {page} · 1 note</span>
+                <span class="tool-button">-</span>
+                <span class="tool-button">{st.session_state.zoom}%</span>
+                <span class="tool-button">+</span>
+            </div>
+            <div class="tool-group" style="justify-content:flex-end;">
+                <span class="tool-button">+</span>
+                <span class="tool-button">Tải</span>
+                <span class="tool-button">Hoàn tác</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    nav_cols = st.columns([1, 1, 6, 1, 1])
+    with nav_cols[0]:
+        if st.button("<", use_container_width=True, disabled=page <= 1, key="prev_top"):
+            move_page(-1)
+            st.rerun()
+    with nav_cols[1]:
+        if st.button(">", use_container_width=True, disabled=page >= total_pages, key="next_top"):
+            move_page(1)
+            st.rerun()
+    with nav_cols[3]:
+        if st.button("- Zoom", use_container_width=True, key="zoom_out"):
+            st.session_state.zoom = max(80, st.session_state.zoom - 10)
+            st.rerun()
+    with nav_cols[4]:
+        if st.button("+ Zoom", use_container_width=True, key="zoom_in"):
+            st.session_state.zoom = min(130, st.session_state.zoom + 10)
             st.rerun()
 
-st.divider()
-st.caption("VLearn Clone · Mini Hackathon Prototype · Batch 03 K3")
+
+def render_slide_stage(material: dict[str, Any]) -> None:
+    page = st.session_state.page
+    total_pages = material_page_count(material)
+    scale = st.session_state.zoom / 100
+    is_pdf = bool(material.get("pdf_path") and fitz is not None)
+
+    if is_pdf:
+        render_pdf_document(material)
+    else:
+        current = slide_by_page(material, page)
+        next_slide = slide_by_page(material, page + 1) if page < total_pages else None
+
+        content = f"""
+        <div class="stage" style="font-size:{scale:.2f}rem;">
+            {render_slide(current, material)}
+            {render_slide(next_slide, material, preview=True) if next_slide else ""}
+        </div>
+        """
+        st.markdown(content, unsafe_allow_html=True)
+
+    note_key = f"{st.session_state.material_id}:{page}"
+    notes = st.session_state.notes
+    notes[note_key] = st.text_area(
+        "Note riêng của trang",
+        value=notes.get(note_key, ""),
+        placeholder="Kéo đến trang này để mở note riêng của trang.",
+        height=88,
+        key=f"note_{note_key}",
+    )
+
+    if is_pdf:
+        return
+
+    bottom = st.columns([1, 3, 1])
+    with bottom[0]:
+        if st.button("< Trang trước", use_container_width=True, disabled=page <= 1, key="prev_bottom"):
+            move_page(-1)
+            st.rerun()
+    with bottom[1]:
+        st.markdown(
+            f"<p style='text-align:center;color:#60708a;font-weight:800;'>Trang {page} / {total_pages}</p>",
+            unsafe_allow_html=True,
+        )
+    with bottom[2]:
+        if st.button("Trang sau >", use_container_width=True, disabled=page >= total_pages, key="next_bottom"):
+            move_page(1)
+            st.rerun()
+
+
+def render_chat_panel(material: dict[str, Any], slide: dict[str, Any]) -> None:
+    api_ready = bool(os.getenv("DEEPSEEK_API_KEY") and OpenAI is not None)
+    st.markdown(
+        """
+        <div class="panel-title">
+            <div class="panel-icon">AI</div>
+            <div>
+                <h2>VLearn Tutor</h2>
+                <p>Trợ lý học theo ngữ cảnh</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"""
+        <div class="chat-context">
+            <strong>Ngữ cảnh: Slide trang {slide.get("page")}</strong>
+            {html.escape(slide.get("title", ""))}<br>
+            {"DeepSeek API đã sẵn sàng." if api_ready else "Chế độ demo: thêm DEEPSEEK_API_KEY để gọi LLM thật."}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.text_area(
+        "Ngữ cảnh chọn",
+        key="selected_passage",
+        placeholder="Dán nội dung bạn muốn hỏi để tutor giải thích đúng ngữ cảnh...",
+        height=92,
+        label_visibility="collapsed",
+    )
+
+    quick_cols = st.columns(3)
+    with quick_cols[0]:
+        if st.button("Tóm tắt", use_container_width=True):
+            ask_tutor("Tóm tắt trang này trong 3 ý.")
+            st.rerun()
+    with quick_cols[1]:
+        if st.button("Kiểm tra", use_container_width=True):
+            ask_tutor("Tạo một câu hỏi kiểm tra hiểu bài từ trang này.")
+            st.rerun()
+    with quick_cols[2]:
+        if st.button("Giải thích", use_container_width=True):
+            ask_tutor("Giải thích nội dung đã chọn bằng ví dụ dễ hiểu.")
+            st.rerun()
+
+    with st.container(height=450, border=False):
+        if not st.session_state.chat_history:
+            st.markdown(
+                """
+                <div class="assistant-empty">
+                    Xin chào! Mình là VLearn Tutor. Bạn có thể chọn nội dung trên slide,
+                    dán vào ô ngữ cảnh, rồi hỏi hoặc gửi câu hỏi tự do.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        for msg in st.session_state.chat_history:
+            with st.chat_message("user" if msg["role"] == "user" else "assistant"):
+                st.markdown(msg["content"])
+
+    with st.form("chat_form", clear_on_submit=True):
+        chat_cols = st.columns([5, 1])
+        with chat_cols[0]:
+            question = st.text_input(
+                "Nhập câu hỏi",
+                label_visibility="collapsed",
+                placeholder="Nhập câu hỏi về tài liệu...",
+            )
+        with chat_cols[1]:
+            submitted = st.form_submit_button("Gửi", use_container_width=True)
+    if submitted:
+        ask_tutor(question)
+        st.rerun()
+
+
+ensure_state()
+_deck, material = current_deck_material()
+current_slide = slide_by_page(material, st.session_state.page)
+
+render_css()
+render_topbar(material)
+
+left, middle, right = st.columns([1.18, 3.32, 1.6], gap="medium")
+with left:
+    render_left_panel()
+with middle:
+    render_toolbar(material)
+    render_slide_stage(material)
+with right:
+    render_chat_panel(material, current_slide)
