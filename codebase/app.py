@@ -7,10 +7,12 @@ import json
 import os
 import re
 import base64
+import textwrap
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 try:
     from dotenv import load_dotenv
@@ -363,6 +365,13 @@ def pdf_page_png(pdf_path: str, page: int, zoom_percent: int) -> bytes:
 
 
 @st.cache_data(show_spinner=False)
+def pdf_page_image_data_uri(pdf_path: str, page: int) -> str:
+    image = pdf_page_png(pdf_path, page, 100)
+    image_b64 = base64.b64encode(image).decode("ascii")
+    return f"data:image/png;base64,{image_b64}"
+
+
+@st.cache_data(show_spinner=False)
 def pdf_page_size(pdf_path: str, page: int) -> tuple[float, float]:
     if fitz is None:
         return (1.0, 1.0)
@@ -486,6 +495,10 @@ def ensure_state() -> None:
         "page": 1,
         "zoom": 100,
         "selected_passage": "",
+        "highlight_mode": False,
+        "ocr_cache": {},
+        "highlight_error": "",
+        "quiz_session": None,
         "chat_history": [],
         "notes": {},
     }
@@ -584,24 +597,79 @@ def slide_context(slide: dict[str, Any], material: dict[str, Any], selected: str
     return "\n".join(parts)
 
 
-def get_deepseek_answer(
+def get_llm_config() -> tuple[str, str, str | None, str | None, str]:
+    provider = os.getenv("LLM_PROVIDER", "").strip().lower()
+    if not provider:
+        provider = "openai" if os.getenv("OPENAI_API_KEY") else "deepseek"
+
+    if provider == "openai":
+        return (
+            "openai",
+            "OpenAI",
+            os.getenv("OPENAI_API_KEY"),
+            os.getenv("OPENAI_BASE_URL") or None,
+            os.getenv("LLM_MODEL") or os.getenv("OPENAI_DEFAULT_MODEL") or "gpt-4.1-mini",
+        )
+
+    return (
+        "deepseek",
+        "DeepSeek",
+        os.getenv("DEEPSEEK_API_KEY"),
+        os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+    )
+
+
+def llm_status() -> tuple[bool, str, str]:
+    _provider, label, api_key, _base_url, model = get_llm_config()
+    return bool(api_key and OpenAI is not None), label, model
+
+
+def get_llm_answer(
     question: str,
     slide: dict[str, Any],
     material: dict[str, Any],
     selected_passage: str,
 ) -> str | None:
-    api_key = os.getenv("DEEPSEEK_API_KEY")
-    if not api_key or OpenAI is None:
+    if OpenAI is None:
         return None
 
-    client = OpenAI(
-        api_key=api_key,
-        base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-    )
-    model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    provider, _label, api_key, base_url, model = get_llm_config()
+    if not api_key:
+        return None
+
+    client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
 
     history = st.session_state.chat_history[-6:]
-    messages: list[dict[str, str]] = [
+    context_text = "Ngữ cảnh slide:\n" + slide_context(slide, material, selected_passage)
+    page_number = int(slide.get("page", st.session_state.page))
+    can_attach_page_image = (
+        provider == "openai"
+        and bool(material.get("pdf_path"))
+        and not slide.get("pdf_text", "").strip()
+    )
+    if can_attach_page_image:
+        context_text += (
+            "\n\nTrang PDF này không có text trích xuất được. "
+            f"Hãy đọc nội dung trực tiếp từ ảnh slide đính kèm và trả lời theo [trang {page_number}]."
+        )
+
+    context_message: dict[str, Any]
+    if can_attach_page_image:
+        context_message = {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": context_text},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": pdf_page_image_data_uri(material["pdf_path"], page_number)},
+                },
+            ],
+        }
+    else:
+        context_message = {"role": "user", "content": context_text}
+
+    messages: list[dict[str, Any]] = [
         {
             "role": "system",
             "content": (
@@ -612,10 +680,7 @@ def get_deepseek_answer(
                 "Kết thúc bằng một câu hỏi kiểm tra hiểu bài khi phù hợp."
             ),
         },
-        {
-            "role": "user",
-            "content": "Ngữ cảnh slide:\n" + slide_context(slide, material, selected_passage),
-        },
+        context_message,
     ]
     for item in history:
         messages.append({"role": item["role"], "content": item["content"]})
@@ -628,6 +693,278 @@ def get_deepseek_answer(
         max_tokens=700,
     )
     return response.choices[0].message.content or ""
+
+
+def ocr_pdf_page_with_openai(pdf_path: str, page: int) -> str:
+    provider, _label, api_key, base_url, model = get_llm_config()
+    if provider != "openai" or not api_key or OpenAI is None:
+        return ""
+
+    client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Bạn là bộ trích xuất chữ từ slide. "
+                    "Đọc ảnh slide và trả về toàn bộ chữ nhìn thấy được, giữ heading và bullet nếu có. "
+                    "Không giải thích, không thêm kiến thức ngoài ảnh."
+                ),
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"Trích xuất chữ trên slide trang {page}."},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": pdf_page_image_data_uri(pdf_path, page)},
+                    },
+                ],
+            },
+        ],
+        temperature=0,
+        max_tokens=1200,
+    )
+    return (response.choices[0].message.content or "").strip()
+
+
+def page_text_for_highlight(material: dict[str, Any], page: int) -> tuple[str, str]:
+    pdf_path = material.get("pdf_path")
+    if not pdf_path:
+        slide = slide_by_page(material, page)
+        text = "\n".join(
+            part
+            for part in [
+                slide.get("title", ""),
+                slide.get("subtitle", ""),
+                "\n".join(slide.get("key_points", [])),
+                slide.get("callout", ""),
+            ]
+            if part
+        ).strip()
+        return text, "metadata"
+
+    text = pdf_page_text(pdf_path, page).strip()
+    if text:
+        return text, "pdf_text"
+
+    cache_key = f"{material['id']}:{page}"
+    cache = st.session_state.setdefault("ocr_cache", {})
+    if cache_key not in cache:
+        try:
+            cache[cache_key] = ocr_pdf_page_with_openai(pdf_path, page)
+            st.session_state.highlight_error = ""
+        except Exception as exc:
+            cache[cache_key] = ""
+            st.session_state.highlight_error = f"Không OCR được trang này: {exc}"
+    return cache.get(cache_key, ""), "openai_ocr"
+
+
+def parse_json_object(text: str) -> dict[str, Any]:
+    try:
+        return json.loads(text)
+    except Exception:
+        match = re.search(r"\{.*\}", text, flags=re.S)
+        if not match:
+            raise
+        return json.loads(match.group(0))
+
+
+def normalize_quiz_items(payload: dict[str, Any], fallback: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    raw_questions = payload.get("questions", [])
+    items: list[dict[str, Any]] = []
+    for raw in raw_questions:
+        question = str(raw.get("question", "")).strip()
+        options = raw.get("options", {})
+        if isinstance(options, list):
+            options = {chr(65 + idx): str(value) for idx, value in enumerate(options[:4])}
+        if not isinstance(options, dict):
+            continue
+        normalized_options = {
+            key: str(options.get(key, "")).strip()
+            for key in ["A", "B", "C", "D"]
+            if str(options.get(key, "")).strip()
+        }
+        raw_correct = str(raw.get("correct") or raw.get("answer") or raw.get("correct_answer") or "").upper()
+        correct_match = re.search(r"[ABCD]", raw_correct)
+        correct = correct_match.group(0) if correct_match else ""
+        explanation = str(raw.get("explanation", "")).strip()
+        if question and len(normalized_options) == 4 and correct in normalized_options:
+            items.append(
+                {
+                    "question": question,
+                    "options": normalized_options,
+                    "correct": correct,
+                    "explanation": explanation or "Đáp án này khớp với nội dung trên slide.",
+                }
+            )
+    return items[:3] or fallback
+
+
+def fallback_quiz_items(slide: dict[str, Any], material: dict[str, Any], selected: str) -> list[dict[str, Any]]:
+    page = int(slide.get("page", st.session_state.page))
+    topic = (
+        selected.strip()
+        or slide.get("title", "").strip()
+        or slide.get("subtitle", "").strip()
+        or f"nội dung trang {page}"
+    )
+    return [
+        {
+            "question": "Ý chính của trang này liên quan nhất đến điều gì?",
+            "options": {
+                "A": topic,
+                "B": "Chính sách học phí",
+                "C": "Lịch nghỉ học",
+                "D": "Thông tin không có trên slide",
+            },
+            "correct": "A",
+            "explanation": f"Phương án A bám vào nội dung/ngữ cảnh hiện có của [trang {page}].",
+        },
+        {
+            "question": "Khi tutor không có đủ căn cứ từ slide, cách phản hồi đúng là gì?",
+            "options": {
+                "A": "Bịa câu trả lời cho đủ ý",
+                "B": "Nói rõ thiếu căn cứ và yêu cầu thêm ngữ cảnh",
+                "C": "Đưa đáp án bài kiểm tra",
+                "D": "Trích dẫn một trang chưa kiểm tra",
+            },
+            "correct": "B",
+            "explanation": "Tutor phải bám nguồn và tránh đoán khi thiếu context.",
+        },
+        {
+            "question": "Vì sao câu trả lời nên ghi [trang]?",
+            "options": {
+                "A": "Để người học tự kiểm tra lại nguồn",
+                "B": "Để câu trả lời dài hơn",
+                "C": "Để thay thế việc đọc slide",
+                "D": "Để bỏ qua ngữ cảnh",
+            },
+            "correct": "A",
+            "explanation": "Citation giúp người học kiểm chứng nội dung trả lời.",
+        },
+    ]
+
+
+def generate_quiz_items(slide: dict[str, Any], material: dict[str, Any], selected: str) -> list[dict[str, Any]]:
+    fallback = fallback_quiz_items(slide, material, selected)
+    provider, _label, api_key, base_url, model = get_llm_config()
+    if OpenAI is None or not api_key:
+        return fallback
+
+    page = int(slide.get("page", st.session_state.page))
+    context_text = (
+        "Tạo đúng 3 câu hỏi trắc nghiệm để kiểm tra hiểu bài từ slide hiện tại.\n"
+        "Chỉ dùng nội dung trong context/ảnh slide. Không hỏi thông tin vụn vặt như tên người trình bày hoặc ngày tháng nếu không quan trọng cho bài học.\n"
+        "Không lộ đáp án trong câu hỏi/options. Trả về JSON thuần, không markdown, theo schema:\n"
+        '{"questions":[{"question":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"correct":"A","explanation":"..."}]}\n\n'
+        + slide_context(slide, material, selected)
+    )
+    can_attach_page_image = (
+        provider == "openai"
+        and bool(material.get("pdf_path"))
+        and not slide.get("pdf_text", "").strip()
+    )
+    if can_attach_page_image:
+        content: str | list[dict[str, Any]] = [
+            {"type": "text", "text": context_text},
+            {
+                "type": "image_url",
+                "image_url": {"url": pdf_page_image_data_uri(material["pdf_path"], page)},
+            },
+        ]
+    else:
+        content = context_text
+
+    try:
+        client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Bạn tạo quiz tương tác cho VLearn Tutor. Trả về JSON hợp lệ, không kèm đáp án trong phần options.",
+                },
+                {"role": "user", "content": content},
+            ],
+            temperature=0.2,
+            max_tokens=1400,
+        )
+        payload = parse_json_object(response.choices[0].message.content or "")
+        return normalize_quiz_items(payload, fallback)
+    except Exception as exc:
+        st.session_state.highlight_error = f"Không tạo quiz bằng LLM được, đang dùng quiz dự phòng: {exc}"
+        return fallback
+
+
+def start_quiz(material: dict[str, Any], slide: dict[str, Any]) -> None:
+    selected = st.session_state.selected_passage.strip()
+    items = generate_quiz_items(slide, material, selected)
+    page = int(slide.get("page", st.session_state.page))
+    st.session_state.quiz_session = {
+        "id": f"{st.session_state.material_id}_{page}_{len(st.session_state.chat_history)}",
+        "material_id": st.session_state.material_id,
+        "page": page,
+        "index": 0,
+        "questions": items,
+    }
+    st.session_state.chat_history.append(
+        {
+            "role": "assistant",
+            "content": f"Mình sẽ kiểm tra nhanh [trang {page}] bằng {len(items)} câu trắc nghiệm. Chọn một đáp án để mình phản hồi.",
+        }
+    )
+
+
+def answer_quiz(choice: str) -> None:
+    quiz = st.session_state.get("quiz_session")
+    if not quiz:
+        return
+    index = int(quiz.get("index", 0))
+    questions = quiz.get("questions", [])
+    if index >= len(questions):
+        st.session_state.quiz_session = None
+        return
+
+    item = questions[index]
+    selected_text = html.escape(item["options"].get(choice, ""))
+    correct = item["correct"]
+    is_correct = choice == correct
+    correct_text = html.escape(item["options"][correct])
+    explanation = html.escape(item["explanation"])
+    status_html = (
+        '<span style="color:#07824f;font-weight:900;">Đúng</span>'
+        if is_correct
+        else '<span style="color:#c91f37;font-weight:900;">Sai</span>'
+    )
+    st.session_state.chat_history.append({"role": "user", "content": f"Chọn {choice}. {selected_text}"})
+    st.session_state.chat_history.append(
+        {
+            "role": "assistant",
+            "content": textwrap.dedent(
+                f"""
+                <div>
+                    <div>{status_html}</div>
+                    <div><strong>Đáp án đúng:</strong> {correct}. {correct_text}</div>
+                    <div style="margin-top:6px;"><strong>Giải thích:</strong> {explanation}</div>
+                </div>
+                """
+            ).strip(),
+            "html": True,
+        },
+    )
+    quiz["index"] = index + 1
+    if quiz["index"] >= len(questions):
+        st.session_state.chat_history.append({"role": "assistant", "content": "Bạn đã hoàn thành phần kiểm tra nhanh."})
+        st.session_state.quiz_session = None
+    else:
+        st.session_state.quiz_session = quiz
+
+
+def is_quiz_request(question: str) -> bool:
+    lower = question.lower()
+    return any(term in lower for term in ["kiểm tra", "kiem tra", "trắc nghiệm", "trac nghiem", "mcq", "quiz"])
 
 
 def fallback_answer(question: str, slide: dict[str, Any], material: dict[str, Any], selected: str) -> str:
@@ -645,9 +982,27 @@ def fallback_answer(question: str, slide: dict[str, Any], material: dict[str, An
         )
 
     if any(term in lower_question for term in ["kiểm tra", "kiem tra", "quiz", "hỏi lại", "hoi lai"]):
+        topic = context_line if context_line != "nội dung trang này" else f"nội dung chính của trang {page}"
         return (
-            f"Câu hỏi kiểm tra [trang {page}]: Nếu người học hỏi một câu mà slide không có đủ căn cứ, "
-            "VLearn Tutor nên trả lời trực tiếp, hỏi thêm, hay từ chối có hướng dẫn? Vì sao?"
+            f"3 câu trắc nghiệm [trang {page}]:\n\n"
+            f"1. Ý chính của trang này liên quan nhất đến điều gì?\n"
+            f"A. {topic}\n"
+            "B. Chính sách học phí\n"
+            "C. Lịch nghỉ học\n"
+            "D. Thông tin không có trên slide\n"
+            "Đáp án: A. Vì đây là nội dung có trong ngữ cảnh hiện tại.\n\n"
+            "2. Khi tutor không có đủ căn cứ từ slide, cách phản hồi đúng là gì?\n"
+            "A. Bịa câu trả lời cho đủ ý\n"
+            "B. Nói rõ thiếu căn cứ và yêu cầu thêm ngữ cảnh\n"
+            "C. Đưa đáp án bài kiểm tra\n"
+            "D. Trích dẫn một trang chưa kiểm tra\n"
+            "Đáp án: B. Vì tutor phải bám nguồn và tránh đoán.\n\n"
+            "3. Vì sao cần ghi rõ [trang] khi trả lời?\n"
+            "A. Để người học kiểm tra lại nguồn\n"
+            "B. Để câu trả lời dài hơn\n"
+            "C. Để thay thế việc đọc slide\n"
+            "D. Để bỏ qua ngữ cảnh\n"
+            "Đáp án: A. Vì citation giúp người học tự xác minh."
         )
 
     if any(term in lower_question for term in ["react", "agent", "tool", "chatbot"]):
@@ -693,10 +1048,10 @@ def ask_tutor(question: str) -> None:
     st.session_state.chat_history.append({"role": "user", "content": question})
 
     try:
-        answer = get_deepseek_answer(question, slide, material, selected)
+        answer = get_llm_answer(question, slide, material, selected)
     except Exception as exc:
         answer = (
-            "DeepSeek chưa trả lời được ở lượt này, nên mình dùng chế độ demo. "
+            "LLM chưa trả lời được ở lượt này, nên mình dùng chế độ demo. "
             f"Lỗi kỹ thuật: {exc}"
         )
 
@@ -720,88 +1075,88 @@ def render_slide(slide: dict[str, Any], material: dict[str, Any], preview: bool 
 
     if layout == "cover":
         body = f"""
-        <div class="cover-panel">
-            <div class="brand-mark">V</div>
-            <div class="cover-brand">{eyebrow}</div>
-            <h1>{title}</h1>
-            <p>{subtitle}</p>
-            <div class="cover-footer">{html.escape(slide.get("footer", ""))}</div>
-        </div>
-        """
+<div class="cover-panel">
+    <div class="brand-mark">V</div>
+    <div class="cover-brand">{eyebrow}</div>
+    <h1>{title}</h1>
+    <p>{subtitle}</p>
+    <div class="cover-footer">{html.escape(slide.get("footer", ""))}</div>
+</div>
+"""
     elif layout == "compare":
         columns = slide.get("columns", [])
         column_html = ""
         for col in columns[:2]:
             column_html += f"""
-            <div class="compare-card">
-                <h3>{html.escape(col.get("title", ""))}</h3>
-                <ul>{html_list(col.get("items", []))}</ul>
-            </div>
-            """
+<div class="compare-card">
+    <h3>{html.escape(col.get("title", ""))}</h3>
+    <ul>{html_list(col.get("items", []))}</ul>
+</div>
+"""
         body = f"""
-        <div class="slide-heading">
-            <span>{eyebrow}</span>
-            <h2>{title}</h2>
-            <p>{subtitle}</p>
-        </div>
-        <div class="compare-grid">{column_html}</div>
-        """
+<div class="slide-heading">
+    <span>{eyebrow}</span>
+    <h2>{title}</h2>
+    <p>{subtitle}</p>
+</div>
+<div class="compare-grid">{column_html}</div>
+"""
     elif layout == "loop":
         steps = slide.get("steps", [])
         step_html = ""
         for idx, step in enumerate(steps, start=1):
             label, desc = step
             step_html += f"""
-            <div class="loop-step">
-                <div class="step-index">{idx}</div>
-                <div><strong>{html.escape(label)}</strong><p>{html.escape(desc)}</p></div>
-            </div>
-            """
+<div class="loop-step">
+    <div class="step-index">{idx}</div>
+    <div><strong>{html.escape(label)}</strong><p>{html.escape(desc)}</p></div>
+</div>
+"""
         body = f"""
-        <div class="slide-heading">
-            <span>{eyebrow}</span>
-            <h2>{title}</h2>
-            <p>{subtitle}</p>
-        </div>
-        <div class="loop-grid">{step_html}</div>
-        """
+<div class="slide-heading">
+    <span>{eyebrow}</span>
+    <h2>{title}</h2>
+    <p>{subtitle}</p>
+</div>
+<div class="loop-grid">{step_html}</div>
+"""
     elif layout == "tool":
         code = html.escape(slide.get("code", ""))
         body = f"""
-        <div class="slide-heading">
-            <span>{eyebrow}</span>
-            <h2>{title}</h2>
-            <p>{subtitle}</p>
-        </div>
-        <div class="split-grid">
-            <ul class="large-points">{html_list(slide.get("key_points", []))}</ul>
-            <pre>{code}</pre>
-        </div>
-        """
+<div class="slide-heading">
+    <span>{eyebrow}</span>
+    <h2>{title}</h2>
+    <p>{subtitle}</p>
+</div>
+<div class="split-grid">
+    <ul class="large-points">{html_list(slide.get("key_points", []))}</ul>
+    <pre>{code}</pre>
+</div>
+"""
     else:
         body = f"""
-        <div class="slide-heading">
-            <span>{eyebrow}</span>
-            <h2>{title}</h2>
-            <p>{subtitle}</p>
-        </div>
-        <ul class="large-points">{html_list(slide.get("key_points", []))}</ul>
-        """
+<div class="slide-heading">
+    <span>{eyebrow}</span>
+    <h2>{title}</h2>
+    <p>{subtitle}</p>
+</div>
+<ul class="large-points">{html_list(slide.get("key_points", []))}</ul>
+"""
         if slide.get("callout"):
             body += f"""<div class="slide-callout">{html.escape(slide["callout"])}</div>"""
 
-    return f"""
-    <section class="sheet{preview_class}">
-        <div class="sheet-meta">
-            <span>Trang {page} / {material_page_count(material)}</span>
-            <span>{filename}</span>
-        </div>
-        <div class="slide-canvas {html.escape(layout)}">
-            {body}
-        </div>
-    </section>
-    """
-
+    raw_html = f"""
+<section class="sheet{preview_class}">
+    <div class="sheet-meta">
+        <span>Trang {page} / {material_page_count(material)}</span>
+        <span>{filename}</span>
+    </div>
+    <div class="slide-canvas {html.escape(layout)}">
+        {body}
+    </div>
+</section>
+"""
+    return textwrap.dedent(raw_html).strip()
 
 def render_pdf_text_layer(pdf_path: str, page: int) -> str:
     page_width, page_height = pdf_page_size(pdf_path, page)
@@ -845,21 +1200,19 @@ def render_pdf_sheet(material: dict[str, Any], page: int) -> str:
         return render_slide(fallback_slide, material)
 
     image_b64 = base64.b64encode(image).decode("ascii")
-    text_layer = render_pdf_text_layer(pdf_path, page)
-    return f"""
-    <section class="sheet pdf-sheet" id="pdf-page-{page}">
-        <div class="sheet-meta">
-            <span>Trang {page} / {material_page_count(material)}</span>
-            <span>{filename}</span>
-        </div>
-        <div class="pdf-frame">
-            <img src="data:image/png;base64,{image_b64}" alt="{title}" />
-            <div class="pdf-text-layer" aria-label="Selectable text layer for page {page}">
-                {text_layer}
+    return textwrap.dedent(
+        f"""
+        <section class="sheet pdf-sheet" id="pdf-page-{page}">
+            <div class="sheet-meta">
+                <span>Trang {page} / {material_page_count(material)}</span>
+                <span>{filename}</span>
             </div>
-        </div>
-    </section>
-    """
+            <div class="pdf-frame">
+                <img src="data:image/png;base64,{image_b64}" alt="{title}" />
+            </div>
+        </section>
+        """
+    ).strip()
 
 
 def render_pdf_document(material: dict[str, Any]) -> None:
@@ -868,14 +1221,29 @@ def render_pdf_document(material: dict[str, Any]) -> None:
         return
 
     total_pages = material_page_count(material)
-    with st.container(height=620, border=False, key="pdf_scroller"):
+    current_page = st.session_state.page
+    with st.container(height=650, border=False, key=f"pdf_scroller_{material['id']}"):
         for page in range(1, total_pages + 1):
             st.markdown(render_pdf_sheet(material, page), unsafe_allow_html=True)
+    components.html(
+        textwrap.dedent(
+            f"""
+            <script>
+            const target = window.parent.document.getElementById("pdf-page-{current_page}");
+            if (target) {{
+                target.scrollIntoView({{ block: "start", behavior: "auto" }});
+            }}
+            </script>
+            """
+        ).strip(),
+        height=0,
+    )
 
 
 def render_css() -> None:
     st.markdown(
-        """
+        textwrap.dedent(
+            """
 <style>
     :root {
         --ink: #142033;
@@ -1111,7 +1479,8 @@ def render_css() -> None:
         padding: 18px 22px 36px;
     }
 
-    .st-key-pdf_scroller {
+    .pdf-scroller,
+    div[class*="st-key-pdf_scroller"] {
         height: calc(100vh - 155px) !important;
         min-height: 620px;
         overflow: auto !important;
@@ -1124,10 +1493,10 @@ def render_css() -> None:
         padding: 18px 22px 36px;
     }
 
-    .st-key-pdf_scroller div[data-testid="stVerticalBlock"] {
+    .pdf-scroller > div[data-testid="stVerticalBlock"],
+    div[class*="st-key-pdf_scroller"] div[data-testid="stVerticalBlock"] {
         gap: 0;
     }
-
     .sheet {
         max-width: 980px;
         margin: 0 auto 30px;
@@ -1171,30 +1540,6 @@ def render_css() -> None:
         display: block;
         width: 100%;
         height: auto;
-    }
-
-    .pdf-text-layer {
-        position: absolute;
-        inset: 0;
-        z-index: 2;
-        user-select: text;
-        pointer-events: auto;
-    }
-
-    .pdf-text-layer span {
-        position: absolute;
-        display: block;
-        overflow: hidden;
-        color: transparent;
-        line-height: 1;
-        white-space: nowrap;
-        font-size: 10px;
-        user-select: text;
-    }
-
-    .pdf-text-layer span::selection {
-        background: rgba(255, 225, 92, 0.5);
-        color: transparent;
     }
 
     .slide-canvas {
@@ -1418,6 +1763,9 @@ def render_css() -> None:
     }
 
     div.stButton > button {
+        background: white !important;
+        color: black !important;
+        border: 1px solid #d0d7de !important;
         border-radius: 8px;
         min-height: 2.35rem;
         font-weight: 800;
@@ -1470,13 +1818,15 @@ def render_css() -> None:
         }
     }
 </style>
-        """,
+            """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
 
 def render_topbar(material: dict[str, Any]) -> None:
-    status = "DeepSeek ready" if os.getenv("DEEPSEEK_API_KEY") and OpenAI is not None else "Demo tutor"
+    ready, llm_label, model = llm_status()
+    status = f"{llm_label} ready" if ready else "Demo tutor"
     logo_uri = asset_data_uri(str(LOGO_PATH))
     brand_html = (
         f'<div class="brand-logo-crop"><img class="brand-logo-img" src="{logo_uri}" alt="VinUniversity" /></div>'
@@ -1484,34 +1834,38 @@ def render_topbar(material: dict[str, Any]) -> None:
         else '<strong>VLearn</strong>'
     )
     st.markdown(
-        f"""
-        <div class="topbar">
-            <div class="brand">{brand_html}</div>
-            <div class="doc-title">
-                <strong>{html.escape(material.get("title", ""))}</strong>
-                <span>COMP2010 · Lecture material · contextual study mode</span>
+        textwrap.dedent(
+            f"""
+            <div class="topbar">
+                <div class="brand">{brand_html}</div>
+                <div class="doc-title">
+                    <strong>{html.escape(material.get("title", ""))}</strong>
+                    <span>COMP2010 · Lecture material · contextual study mode</span>
+                </div>
+                <div class="top-actions">
+                    <span class="pill">VI</span>
+                    <span class="pill">{status}</span>
+                </div>
             </div>
-            <div class="top-actions">
-                <span class="pill">VI</span>
-                <span class="pill">{status}</span>
-            </div>
-        </div>
-        """,
+            """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
 
 def render_left_panel() -> None:
     st.markdown(
-        """
-        <div class="panel-title">
-            <div class="panel-icon">B</div>
-            <div>
-                <h2>Học liệu môn học</h2>
-                <p>Chương, slide và tài liệu đã upload</p>
+        textwrap.dedent(
+            """
+            <div class="panel-title">
+                <div class="panel-icon">B</div>
+                <div>
+                    <h2>Học liệu môn học</h2>
+                    <p>Chương, slide và tài liệu đã upload</p>
+                </div>
             </div>
-        </div>
-        """,
+            """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -1521,17 +1875,19 @@ def render_left_panel() -> None:
     for deck in DECKS:
         active = any(m["id"] == st.session_state.material_id for m in deck.get("materials", []))
         st.markdown(
-            f"""
-            <div class="day-card{' active' if active else ''}">
-                <div class="day-row">
-                    <div>
-                        <div class="day-title">{html.escape(deck.get("title", ""))}</div>
-                        <div class="day-summary">{html.escape(deck.get("summary", ""))}</div>
+            textwrap.dedent(
+                f"""
+                <div class="day-card{' active' if active else ''}">
+                    <div class="day-row">
+                        <div>
+                            <div class="day-title">{html.escape(deck.get("title", ""))}</div>
+                            <div class="day-summary">{html.escape(deck.get("summary", ""))}</div>
+                        </div>
+                        <div class="status-chip">{html.escape(deck.get("status", "PUBLISHED"))}</div>
                     </div>
-                    <div class="status-chip">{html.escape(deck.get("status", "PUBLISHED"))}</div>
                 </div>
-            </div>
-            """,
+                """
+            ).strip(),
             unsafe_allow_html=True,
         )
 
@@ -1554,11 +1910,13 @@ def render_left_panel() -> None:
                 st.rerun()
 
     st.markdown(
-        """
-        <p class="small-muted">
-        App tự đọc PDF trong <code>../Slide-AIThucChien</code>. Dùng <code>slides/decks.json</code> nếu cần metadata chi tiết hơn.
-        </p>
-        """,
+        textwrap.dedent(
+            """
+            <p class="small-muted">
+            App tự đọc PDF trong <code>../Slide-AIThucChien</code>. Dùng <code>slides/decks.json</code> nếu cần metadata chi tiết hơn.
+            </p>
+            """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -1568,15 +1926,34 @@ def render_toolbar(material: dict[str, Any]) -> None:
     total_pages = material_page_count(material)
 
     if material.get("pdf_path"):
-        with st.container(border=True):
+        with st.container():
             nav_cols = st.columns([0.75, 1.4, 1.0, 0.55, 0.8, 0.55, 1.9, 1.0], gap="small")
             with nav_cols[0]:
-                st.button("Đọc", use_container_width=True, type="primary", key="read_mode_pdf")
+                if st.button(
+                    "Đọc",
+                    use_container_width=True,
+                    type="primary" if not st.session_state.highlight_mode else "secondary",
+                    key="read_mode_pdf",
+                ):
+                    st.session_state.highlight_mode = False
+                    st.rerun()
             with nav_cols[1]:
-                st.button("Highlight", use_container_width=True, key="highlight_mode_pdf")
+                if st.button(
+                    "Highlight",
+                    use_container_width=True,
+                    type="primary" if st.session_state.highlight_mode else "secondary",
+                    key="highlight_mode_pdf",
+                ):
+                    st.session_state.highlight_mode = True
+                    with st.spinner("Đang đọc chữ trên trang..."):
+                        text, _source = page_text_for_highlight(material, page)
+                    st.session_state.selected_passage = text
+                    st.rerun()
             with nav_cols[2]:
                 if st.button("Copy text", use_container_width=True, key="copy_text_pdf"):
-                    st.session_state.selected_passage = pdf_page_text(material["pdf_path"], page)[:3000]
+                    with st.spinner("Đang lấy text trên trang..."):
+                        text, _source = page_text_for_highlight(material, page)
+                    st.session_state.selected_passage = text[:4000]
                     st.rerun()
             with nav_cols[3]:
                 if st.button("<", use_container_width=True, disabled=page <= 1, key="prev_top_pdf"):
@@ -1616,27 +1993,29 @@ def render_toolbar(material: dict[str, Any]) -> None:
         return
 
     st.markdown(
-        f"""
-        <div class="toolbar">
-            <div class="tool-group">
-                <span class="tool-button active">Đọc</span>
-                <span class="tool-button">Bút</span>
-                <span class="tool-button">Highlight</span>
-                <span class="tool-button">...</span>
+        textwrap.dedent(
+            f"""
+            <div class="toolbar">
+                <div class="tool-group">
+                    <span class="tool-button active">Đọc</span>
+                    <span class="tool-button">Bút</span>
+                    <span class="tool-button">Highlight</span>
+                    <span class="tool-button">...</span>
+                </div>
+                <div class="tool-group" style="justify-content:center;">
+                    <span class="tool-button active">Trang {page} · 1 note</span>
+                    <span class="tool-button">-</span>
+                    <span class="tool-button">{st.session_state.zoom}%</span>
+                    <span class="tool-button">+</span>
+                </div>
+                <div class="tool-group" style="justify-content:flex-end;">
+                    <span class="tool-button">+</span>
+                    <span class="tool-button">Tải</span>
+                    <span class="tool-button">Hoàn tác</span>
+                </div>
             </div>
-            <div class="tool-group" style="justify-content:center;">
-                <span class="tool-button active">Trang {page} · 1 note</span>
-                <span class="tool-button">-</span>
-                <span class="tool-button">{st.session_state.zoom}%</span>
-                <span class="tool-button">+</span>
-            </div>
-            <div class="tool-group" style="justify-content:flex-end;">
-                <span class="tool-button">+</span>
-                <span class="tool-button">Tải</span>
-                <span class="tool-button">Hoàn tác</span>
-            </div>
-        </div>
-        """,
+            """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -1659,6 +2038,31 @@ def render_toolbar(material: dict[str, Any]) -> None:
             st.rerun()
 
 
+def render_highlight_panel(material: dict[str, Any]) -> None:
+    if not st.session_state.highlight_mode:
+        return
+
+    page = st.session_state.page
+    text = st.session_state.selected_passage.strip()
+    if not text:
+        message = st.session_state.get("highlight_error") or (
+            "Trang này không có text trích xuất được. Bấm Highlight lại để OCR bằng OpenAI hoặc dán nội dung vào ô tutor."
+        )
+        st.info(message)
+        return
+
+    widget_key = f"highlight_text_{st.session_state.material_id}_{page}"
+    if st.session_state.get(widget_key) != text:
+        st.session_state[widget_key] = text
+
+    edited = st.text_area(
+        "Text trên trang để highlight/copy",
+        height=150,
+        key=widget_key,
+    )
+    st.session_state.selected_passage = edited
+
+
 def render_slide_stage(material: dict[str, Any]) -> None:
     page = st.session_state.page
     total_pages = material_page_count(material)
@@ -1671,12 +2075,14 @@ def render_slide_stage(material: dict[str, Any]) -> None:
         current = slide_by_page(material, page)
         next_slide = slide_by_page(material, page + 1) if page < total_pages else None
 
-        content = f"""
-        <div class="stage" style="font-size:{scale:.2f}rem;">
-            {render_slide(current, material)}
-            {render_slide(next_slide, material, preview=True) if next_slide else ""}
-        </div>
-        """
+        content = textwrap.dedent(
+            f"""
+            <div class="stage" style="font-size:{scale:.2f}rem;">
+                {render_slide(current, material)}
+                {render_slide(next_slide, material, preview=True) if next_slide else ""}
+            </div>
+            """
+        ).strip()
         st.markdown(content, unsafe_allow_html=True)
 
     note_key = f"{st.session_state.material_id}:{page}"
@@ -1708,28 +2114,59 @@ def render_slide_stage(material: dict[str, Any]) -> None:
             st.rerun()
 
 
+def render_quiz_widget() -> None:
+    quiz = st.session_state.get("quiz_session")
+    if not quiz:
+        return
+    if quiz.get("material_id") != st.session_state.material_id or int(quiz.get("page", 0)) != st.session_state.page:
+        return
+
+    index = int(quiz.get("index", 0))
+    questions = quiz.get("questions", [])
+    if index >= len(questions):
+        st.session_state.quiz_session = None
+        return
+
+    item = questions[index]
+    with st.chat_message("assistant"):
+        st.markdown(f"**Câu {index + 1}/{len(questions)}.** {item['question']}")
+        for key in ["A", "B", "C", "D"]:
+            label = item["options"][key]
+            if st.button(
+                f"{key}. {label}",
+                key=f"quiz_{quiz['id']}_{index}_{key}",
+                use_container_width=True,
+            ):
+                answer_quiz(key)
+                st.rerun()
+
+
 def render_chat_panel(material: dict[str, Any], slide: dict[str, Any]) -> None:
-    api_ready = bool(os.getenv("DEEPSEEK_API_KEY") and OpenAI is not None)
+    api_ready, llm_label, model = llm_status()
     st.markdown(
-        """
-        <div class="panel-title">
-            <div class="panel-icon">AI</div>
-            <div>
-                <h2>VLearn Tutor</h2>
-                <p>Trợ lý học theo ngữ cảnh</p>
+        textwrap.dedent(
+            """
+            <div class="panel-title">
+                <div class="panel-icon">AI</div>
+                <div>
+                    <h2>VLearn Tutor</h2>
+                    <p>Trợ lý học theo ngữ cảnh</p>
+                </div>
             </div>
-        </div>
-        """,
+            """
+        ).strip(),
         unsafe_allow_html=True,
     )
     st.markdown(
-        f"""
-        <div class="chat-context">
-            <strong>Ngữ cảnh: Slide trang {slide.get("page")}</strong>
-            {html.escape(slide.get("title", ""))}<br>
-            {"DeepSeek API đã sẵn sàng." if api_ready else "Chế độ demo: thêm DEEPSEEK_API_KEY để gọi LLM thật."}
-        </div>
-        """,
+        textwrap.dedent(
+            f"""
+            <div class="chat-context">
+                <strong>Ngữ cảnh: Slide trang {slide.get("page")}</strong>
+                {html.escape(slide.get("title", ""))}<br>
+                {f"{llm_label} API đã sẵn sàng. Model: {html.escape(model)}." if api_ready else "Chế độ demo: thêm API key để gọi LLM thật."}
+            </div>
+            """
+        ).strip(),
         unsafe_allow_html=True,
     )
 
@@ -1748,27 +2185,31 @@ def render_chat_panel(material: dict[str, Any], slide: dict[str, Any]) -> None:
             st.rerun()
     with quick_cols[1]:
         if st.button("Kiểm tra", use_container_width=True):
-            ask_tutor("Tạo một câu hỏi kiểm tra hiểu bài từ trang này.")
+            with st.spinner("Đang tạo câu hỏi kiểm tra..."):
+                start_quiz(material, slide)
             st.rerun()
     with quick_cols[2]:
         if st.button("Giải thích", use_container_width=True):
             ask_tutor("Giải thích nội dung đã chọn bằng ví dụ dễ hiểu.")
             st.rerun()
 
-    with st.container(height=450, border=False):
+    with st.container():
         if not st.session_state.chat_history:
             st.markdown(
-                """
-                <div class="assistant-empty">
-                    Xin chào! Mình là VLearn Tutor. Bạn có thể chọn nội dung trên slide,
-                    dán vào ô ngữ cảnh, rồi hỏi hoặc gửi câu hỏi tự do.
-                </div>
-                """,
+                textwrap.dedent(
+                    """
+                    <div class="assistant-empty">
+                        Xin chào! Mình là VLearn Tutor. Bạn có thể chọn nội dung trên slide,
+                        dán vào ô ngữ cảnh, rồi hỏi hoặc gửi câu hỏi tự do.
+                    </div>
+                    """
+                ).strip(),
                 unsafe_allow_html=True,
             )
         for msg in st.session_state.chat_history:
             with st.chat_message("user" if msg["role"] == "user" else "assistant"):
-                st.markdown(msg["content"])
+                st.markdown(msg["content"], unsafe_allow_html=bool(msg.get("html")))
+        render_quiz_widget()
 
     with st.form("chat_form", clear_on_submit=True):
         chat_cols = st.columns([5, 1])
@@ -1781,7 +2222,12 @@ def render_chat_panel(material: dict[str, Any], slide: dict[str, Any]) -> None:
         with chat_cols[1]:
             submitted = st.form_submit_button("Gửi", use_container_width=True)
     if submitted:
-        ask_tutor(question)
+        if is_quiz_request(question):
+            st.session_state.chat_history.append({"role": "user", "content": question.strip()})
+            with st.spinner("Đang tạo câu hỏi kiểm tra..."):
+                start_quiz(material, slide)
+        else:
+            ask_tutor(question)
         st.rerun()
 
 
@@ -1797,6 +2243,7 @@ with left:
     render_left_panel()
 with middle:
     render_toolbar(material)
+    render_highlight_panel(material)
     render_slide_stage(material)
 with right:
     render_chat_panel(material, current_slide)
