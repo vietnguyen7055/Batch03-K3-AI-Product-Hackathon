@@ -6,11 +6,11 @@
 
 | Ma HV | Ho ten | Phan cong |
 |---|---|---|
-| [TODO] | [TODO] | Spec + quality bar |
-| [TODO] | [TODO] | Evidence mining |
-| [TODO] | [TODO] | Prompt + eval |
-| [TODO] | [TODO] | Code prototype |
-| [TODO] | [TODO] | Demo + validation |
+| 2A202602012 | Phùng Văn Đạt | Spec + Quality Bar |
+| 2A202602012 | Phùng Văn Đạt | Prompt + Eval |
+| 2A202601873 | Nguyễn Quang Huy | Evidence Mining |
+| 2A202601737 | Nguyễn Quốc Việt | Code Prototype |
+| 2A202601737 | Nguyễn Quốc Việt | Demo + Validation |
 
 - San pham: VLearn Tutor - contextual slide study mode.
 - Prototype: `codebase/`
