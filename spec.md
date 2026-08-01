@@ -1,6 +1,6 @@
-# AI SPEC - VLearn Tutor contextual slide study mode - Nhom [TODO] - Zone [TODO]
+# AI SPEC - VLearn Tutor contextual slide study mode - Nhom B1-K3-Group3 - Zone 4
 
-Huong: [x] A - VLearn  [ ] B - Tro ly Hoc vien  [ ] C - Lan mo  
+Huong: [x] A - VLearn  [x] B - Tro ly Hoc vien  [ ] C - Lan mo  
 Loai: [x] Toi uu tinh nang co san  [x] Tinh nang moi
 
 ## §1. User & Job
@@ -86,19 +86,25 @@ Loai: [x] Toi uu tinh nang co san  [x] Tinh nang moi
 - Quality bar chot: Dat khi >= 80% cau thu dat, va AI khong duoc bia thong tin khong co trong tai lieu du chi mot lan.
 - Ket qua chay thu lan dau: 52/67, luu tai `eval/results_run_01.csv`. Day la baseline du doan/manual truoc khi chay batch tu dong qua API.
 
-## §8. Phan cong & ke hoach
+## §8. Phân công & kế hoạch
 
-| Phan viec | Nguoi phu trach |
+| Phần việc | Người phụ trách |
 |---|---|
-| Spec + quality bar | [TODO: ten + ma HV] |
-| Evidence mining | [TODO: ten + ma HV] |
-| Prompt + eval | [TODO: ten + ma HV] |
-| Code prototype | [TODO: ten + ma HV] |
-| Demo + validation | [TODO: ten + ma HV] |
+| Spec + quality bar | Phùng Văn Đạt - 2A202602012 |
+| Evidence mining | Nguyễn Quang Huy - 2A202601873 |
+| Prompt + eval | Phùng Văn Đạt - 2A202602012 |
+| Code prototype | Nguyễn Quốc Việt - 2A202601737 |
+| Demo + validation | Nguyễn Quốc Việt - 2A202601737 |
 
-- Willing users: [TODO: ten 1], [TODO: ten 2], [TODO: ten 3].
-- Ke hoach validation CP5: moi user lam 1 task doc slide, 1 task hoi mo ho, 1 task hoi ngoai pham vi; ghi vao `validation/feedback_log.md`.
-- Multi-prototype: khong lam trong phien ban nay; tap trung mot flow working.
+- Willing users:
+  - Phạm Quốc Bảo
+  - Nguyễn Dương  
+
+- Kế hoạch validation CP5:
+  - User 1: thực hiện task đọc slide và hỏi khái niệm, 
+  - User 2: thực hiện task hỏi mơ hồ ("ý này là gì?")
+  - User 1: thực hiện task hỏi ngoài phạm vi ("deadline môn này là khi nào?")
+  - Ghi kết quả vào `validation/feedback_log.md`
 
 ## §9. Changelog
 
